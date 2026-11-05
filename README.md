@@ -108,9 +108,9 @@ https://gamezp.vercel.app/api/telegram?setup
 - `/setuserpic` — аватарка бота;
 - `/setdescription` — текст, который видят до нажатия «Старт»;
 - `/setabouttext` — короткое описание в профиле;
-- **Bot Settings → Configure Mini App → Enable Mini App** с адресом
-  `https://gamezp.vercel.app/webapp/`: появится кнопка «Открыть» в профиле бота
-  и прямая ссылка `t.me/<бот>?startapp`, которой удобно делиться.
+- **Bot Settings → Configure Mini App → Enable Mini App** с адресом игры — своим, а не из примера:
+  на Vercel `https://<проект>.vercel.app/webapp/`, на Railway `https://<домен>.up.railway.app/webapp/`.
+  Появится кнопка «Открыть» в профиле бота и прямая ссылка `t.me/<бот>?startapp`, которой удобно делиться.
 
 ### Если что-то не работает
 
@@ -144,6 +144,8 @@ https://gamezp.vercel.app/api/telegram?setup
 6. Открыть бота в Telegram → **Старт**.
 
 Если в логах «Нет адреса игры», значит домен ещё не создан: выполнить пункт 4 и сделать **Redeploy**.
+Переменную `WEBAPP_URL` на Railway не задавать: адрес игры подставляется сам. Если Railway предложит
+переменные из `.env.example`, достаточно `BOT_TOKEN`.
 Работает либо Railway, либо Vercel: при запуске на Railway бот отключает вебхук Vercel.
 
 ### Свой компьютер или сервер

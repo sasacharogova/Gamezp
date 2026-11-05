@@ -41,6 +41,10 @@ if (!WEBAPP_URL) {
     : 'Не задан WEBAPP_URL — https-адрес, где лежит папка webapp/');
 }
 if (!/^https:\/\//.test(WEBAPP_URL)) fail('WEBAPP_URL должен начинаться с https:// (Telegram открывает Mini App только по https)');
+if (PUBLIC_DOMAIN && process.env.WEBAPP_URL && !process.env.WEBAPP_URL.includes(PUBLIC_DOMAIN)) {
+  console.warn(`⚠️  Кнопки ведут на ${WEBAPP_URL}, а этот сервер — ${PUBLIC_DOMAIN}. ` +
+    'Если игра не открывается, удалите переменную WEBAPP_URL в Railway (Variables) — адрес подставится сам.');
+}
 if (!fs.existsSync(PREVIEW)) fail('Нет файла превью: ' + PREVIEW + ' — запустите npm run render');
 
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
@@ -154,7 +158,7 @@ function serveStatic() {
       });
       res.end(data);
     });
-  }).listen(PORT, () => console.log(`🌐 Игра раздаётся на порту ${PORT}: ${WEBAPP_URL}`));
+  }).listen(PORT, () => console.log(`🌐 Игра раздаётся на порту ${PORT}` + (PUBLIC_DOMAIN ? `: https://${PUBLIC_DOMAIN}/webapp/` : '')));
 }
 
 if (PORT) serveStatic();
