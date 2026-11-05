@@ -4,6 +4,7 @@
   "private": true,
   "description": "Telegram-бот с мини-игрой «Звезда провинции»: «гифка»-превью в чате + сама игра в Mini App",
   "scripts": {
+    "start": "node bot/index.js",
     "bot": "node bot/index.js",
     "render": "node scripts/render-preview.js",
     "check": "node scripts/check.js",
@@ -13,8 +14,10 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "ffmpeg-static": "^5.2.0",
     "playwright": "^1.48.0",
     "terser": "^5.31.0"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "^5.2.0"
   }
 }

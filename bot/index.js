@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /*
- * Telegram-бот без зависимостей (Node 20+, встроенные fetch/FormData) — вариант «свой компьютер/сервер».
+ * Telegram-бот без зависимостей (Node 20+, встроенные fetch/FormData) — для Railway, своего сервера или компьютера.
  * Если выкладываете на Vercel, этот файл не нужен: там бота обслуживает api/telegram.js.
+ *
+ * На хостинге, который выдаёт порт (переменная PORT, например Railway), бот заодно раздаёт
+ * игру по https: /webapp/ — игра, /assets/ — превью, /widget/ — HTML-виджет. Отдельный хостинг не нужен.
  *
  * Что делает — ровно то, что на видео:
  *   1. на /start присылает «гифку» (assets/preview.mp4 через sendAnimation) с подписью;
@@ -10,7 +13,7 @@
  *
  * Настройки — переменные окружения или файл .env в корне репозитория:
  *   BOT_TOKEN    — токен от @BotFather (обязательно)
- *   WEBAPP_URL   — https-адрес, где лежит папка webapp/ (обязательно)
+ *   WEBAPP_URL   — https-адрес папки webapp/; на Railway подставляется сам из RAILWAY_PUBLIC_DOMAIN
  *   BUTTON_TEXT  — текст кнопки под сообщением (по умолчанию «🎮 Играть»)
  *   MENU_TEXT    — текст кнопки меню (по умолчанию «Играть»)
  *   CAPTION      — подпись под гифкой (HTML); тексты по умолчанию — в bot/texts.js
@@ -23,14 +26,21 @@ const ROOT = path.join(__dirname, '..');
 loadDotEnv(path.join(ROOT, '.env'));
 
 const TOKEN = process.env.BOT_TOKEN;
-const WEBAPP_URL = process.env.WEBAPP_URL;
+const PORT = process.env.PORT;
+const PUBLIC_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN;
+const WEBAPP_URL = process.env.WEBAPP_URL || (PUBLIC_DOMAIN ? `https://${PUBLIC_DOMAIN}/webapp/` : '');
 const API = (process.env.TELEGRAM_API || 'https://api.telegram.org').replace(/\/$/, '');
 const PREVIEW = path.resolve(ROOT, process.env.PREVIEW_PATH || 'assets/preview.mp4');
 const { CAPTION, MENU_TEXT, COMMANDS, START_RE, keyboard } = require('./texts');
 const CACHE = path.join(__dirname, '.file-cache.json');
 
-if (!TOKEN) fail('Не задан BOT_TOKEN (возьмите у @BotFather и пропишите в .env)');
-if (!WEBAPP_URL || !/^https:\/\//.test(WEBAPP_URL)) fail('WEBAPP_URL должен быть https-ссылкой на папку webapp/ (Telegram открывает Mini App только по https)');
+if (!TOKEN) fail('Не задан BOT_TOKEN (возьмите у @BotFather; на Railway — вкладка Variables, локально — файл .env)');
+if (!WEBAPP_URL) {
+  fail(PORT
+    ? 'Нет адреса игры. На Railway: Settings → Networking → Generate Domain, затем Redeploy'
+    : 'Не задан WEBAPP_URL — https-адрес, где лежит папка webapp/');
+}
+if (!/^https:\/\//.test(WEBAPP_URL)) fail('WEBAPP_URL должен начинаться с https:// (Telegram открывает Mini App только по https)');
 if (!fs.existsSync(PREVIEW)) fail('Нет файла превью: ' + PREVIEW + ' — запустите npm run render');
 
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
@@ -120,4 +130,32 @@ async function main() {
   }
 }
 
+// Раздача игры, превью и виджета, если хостинг выдал порт (Railway, Render и т.п.)
+function serveStatic() {
+  const http = require('http');
+  const TYPES = {
+    '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+    '.mp4': 'video/mp4', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json',
+  };
+  const PUBLIC = ['webapp', 'assets', 'widget'];
+  http.createServer((req, res) => {
+    let pathname;
+    try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
+    catch (e) { res.writeHead(400); return res.end('Bad request'); }
+    if (pathname === '/') { res.writeHead(302, { location: '/webapp/' }); return res.end(); }
+    const rel = path.normalize(pathname + (pathname.endsWith('/') ? 'index.html' : '')).replace(/^[/\\]+/, '');
+    if (!PUBLIC.includes(rel.split(/[/\\]/)[0])) { res.writeHead(404); return res.end('Not found'); }
+    fs.readFile(path.join(ROOT, rel), (err, data) => {
+      if (err && err.code === 'EISDIR') { res.writeHead(301, { location: pathname + '/' }); return res.end(); }
+      if (err) { res.writeHead(404); return res.end('Not found'); }
+      res.writeHead(200, {
+        'content-type': TYPES[path.extname(rel).toLowerCase()] || 'application/octet-stream',
+        'cache-control': 'public, max-age=300',
+      });
+      res.end(data);
+    });
+  }).listen(PORT, () => console.log(`🌐 Игра раздаётся на порту ${PORT}: ${WEBAPP_URL}`));
+}
+
+if (PORT) serveStatic();
 main().catch(e => fail(e.message));
