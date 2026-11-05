@@ -28,7 +28,7 @@ const PREVIEW = path.resolve(ROOT, process.env.PREVIEW_PATH || 'assets/preview.m
 const BUTTON_TEXT = process.env.BUTTON_TEXT || '🎮 Играть';
 const MENU_TEXT = process.env.MENU_TEXT || 'Играть';
 const CAPTION = process.env.CAPTION ||
-  '<b>Прыг-Куб</b> — мини-игра прямо в Telegram.\nЖми «Играть» и попробуй пройти уровень сам 👇';
+  '<b>Прыг-Седан</b> — мини-игра прямо в Telegram.\nЖми «Играть» и попробуй доехать до финиша сам 👇';
 const CACHE = path.join(__dirname, '.file-cache.json');
 
 if (!TOKEN) fail('Не задан BOT_TOKEN (возьмите у @BotFather и пропишите в .env)');

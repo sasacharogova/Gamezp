@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Прыг-Куб</title>
+  <title>Прыг-Седан</title>
   <!-- SDK Telegram Mini Apps: даёт Telegram.WebApp (expand, хаптика, цвета шапки). Вне Telegram просто ничего не делает. -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
@@ -17,21 +17,14 @@
       -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
     }
-    canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
+    #c { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
     #overlay {
       position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
       background: rgba(8, 10, 30, .45); transition: opacity .18s ease;
     }
     #overlay.hidden { opacity: 0; pointer-events: none; }
     .card { max-width: 340px; text-align: center; }
-    .logo {
-      width: 56px; height: 56px; margin: 0 auto 14px; position: relative;
-      background: #ffd23f; border: 4px solid #151515; border-radius: 6px;
-      transform: rotate(-8deg); box-shadow: 0 6px 0 rgba(0, 0, 0, .25);
-    }
-    .logo::before, .logo::after { content: ""; position: absolute; top: 13px; width: 7px; height: 12px; background: #151515; }
-    .logo::before { right: 8px; }
-    .logo::after { right: 20px; }
+    .logo { display: block; width: 140px; height: 72px; margin: 0 auto 6px; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, .25)); }
     h1 { margin: 0 0 8px; font-size: 40px; line-height: 1.05; text-shadow: 0 3px 0 rgba(0, 0, 0, .3); }
     p { margin: 0 0 20px; font-size: 15px; line-height: 1.4; opacity: .92; }
     button {
@@ -46,8 +39,8 @@
   <canvas id="c"></canvas>
   <div id="overlay">
     <div class="card">
-      <div class="logo"></div>
-      <h1 id="ov-title">Прыг-Куб</h1>
+      <canvas id="logo" class="logo"></canvas>
+      <h1 id="ov-title">Прыг-Седан</h1>
       <p id="ov-text"></p>
       <button id="ov-btn" type="button">Играть</button>
     </div>

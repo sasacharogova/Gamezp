@@ -1,5 +1,5 @@
 /*
- * Прыг-Куб — мини-раннер для Telegram Mini App.
+ * Прыг-Седан — мини-раннер для Telegram Mini App: угловатый седан 80-х прыгает через шипы и блоки.
  *
  * Один и тот же код работает в двух режимах:
  *   - обычный: игра для человека (тап / пробел — прыжок), открывается кнопкой бота;
@@ -41,8 +41,8 @@
   // ---------- мир ----------
   const W = 640, H = 400;          // «эталонный» кадр (и размер превью-видео в логических px)
   const GROUND = 320;              // верх земли
-  const SIZE = 32;                 // размер кубика
-  const PLAYER_SX = 150;           // где кубик стоит на экране по X
+  const PW = 66, PH = 28;          // хитбокс машины (рисуется чуть длиннее — бамперы прощают касания)
+  const PLAYER_SX = 120;           // где машина стоит на экране по X (левый край хитбокса)
   const DT = 1 / 120;              // шаг физики
   const SPEED = 330;               // px/с
   const STEP_X = SPEED * DT;       // 2.75 px за шаг — ровно, без накопления ошибки
@@ -51,7 +51,7 @@
   const LAND_TOL = 7;              // насколько можно «не долететь» до верха блока и всё равно встать
   const LEVEL_LEN = 12000;         // ≈ 36 секунд
   const SECTION_LEN = 2000;        // каждые ~6 секунд меняется цвет фона
-  const ROT_SPEED = Math.PI / (2 * JUMP_V / GRAVITY); // пол-оборота за прыжок
+  const WHEEL_R = 7;
   const PAL = ['#2a48b5', '#8a14b0', '#0e8a87', '#c22a52', '#2c8f3c', '#cf6a14'].map(hexToRgb);
   const OK = 0, DEAD = 1, FINISH = 2;
 
@@ -91,12 +91,12 @@
   }
 
   // ---------- физика (одна и та же для игры и для планировщика) ----------
-  // s: { f — номер шага, x, y — низ кубика, vy, g — стоит ли на опоре }
+  // s: { f — номер шага, x — левый край хитбокса, y — низ колёс, vy, g — стоит ли на опоре }
   function physStep(s, jump, obs) {
     if (s.g && jump) { s.vy = -JUMP_V; s.g = false; }
     s.f++;
     s.x = s.f * STEP_X;
-    const left = s.x + 1, right = s.x + SIZE - 1;
+    const left = s.x + 1, right = s.x + PW - 1;
     const i0 = firstIdx(obs, left - 200);
 
     // сошли с края столба — начинаем падать
@@ -127,7 +127,7 @@
     for (let i = i0; i < obs.length && obs[i].x <= right; i++) {
       const o = obs[i];
       if (o.t !== 's') continue;
-      if (s.x + 4 < o.x + 22 && s.x + SIZE - 4 > o.x + 10 && s.y - 4 > o.base - 22 && s.y - SIZE + 4 < o.base) return DEAD;
+      if (s.x + 4 < o.x + 22 && s.x + PW - 4 > o.x + 10 && s.y - 4 > o.base - 22 && s.y - PH + 4 < o.base) return DEAD;
     }
     return s.x >= LEVEL_LEN ? FINISH : OK;
   }
@@ -215,10 +215,10 @@
   }
 
   // ---------- рекорд ----------
-  function loadBest() { try { return parseFloat(localStorage.getItem('prygkub.best')) || 0; } catch (e) { return 0; } }
+  function loadBest() { try { return parseFloat(localStorage.getItem('prygsedan.best')) || 0; } catch (e) { return 0; } }
   function saveBest() {
     if (game.runBest > game.best) game.best = game.runBest;
-    try { localStorage.setItem('prygkub.best', String(game.best)); } catch (e) { /* приватный режим */ }
+    try { localStorage.setItem('prygsedan.best', String(game.best)); } catch (e) { /* приватный режим */ }
   }
 
   // ---------- состояние игры ----------
@@ -231,7 +231,8 @@
 
   function reset(mode) {
     game.mode = mode;
-    game.p = { f: 0, x: 0, y: GROUND, vy: 0, g: true, rot: 0 };
+    // rot — наклон кузова, wheel — угол колёс, sag — просадка подвески после приземления
+    game.p = { f: 0, x: 0, y: GROUND, vy: 0, g: true, rot: 0, wheel: 0, sag: 0 };
     game.parts.length = 0;
     game.trail = 0;
     input.buffer = 0;
@@ -240,9 +241,14 @@
   function die() {
     const p = game.p;
     game.prevMode = game.mode; game.mode = 'dead'; game.deadT = 0.75; game.shake = 0.3; game.deaths++;
-    for (let i = 0; i < 22; i++) {
+    const colors = [CAR.body, CAR.body, CAR.chrome, CAR.glass, CAR.line];
+    for (let i = 0; i < 26; i++) {
       const a = fx() * Math.PI * 2, v = 80 + fx() * 320, life = 0.5 + fx() * 0.4;
-      game.parts.push({ x: p.x + 16, y: p.y - 16, vx: Math.cos(a) * v + 60, vy: Math.sin(a) * v - 120, life, max: life, s: 4 + fx() * 7, c: i % 3 ? '#ffd23f' : '#ffffff', g: 1 });
+      game.parts.push({ x: p.x + PW / 2 + (fx() - 0.5) * 50, y: p.y - 14, vx: Math.cos(a) * v + 60, vy: Math.sin(a) * v - 140, life, max: life, s: 4 + fx() * 7, c: colors[i % colors.length], g: 1 });
+    }
+    for (let i = 0; i < 6; i++) { // дым
+      const life = 0.6 + fx() * 0.3;
+      game.parts.push({ x: p.x + PW / 2 + (fx() - 0.5) * 40, y: p.y - 18, vx: (fx() - 0.5) * 60, vy: -40 - fx() * 40, life, max: life, s: 10 + fx() * 8, c: 'rgba(40,40,48,0.7)', g: -0.02, puff: true });
     }
     if (game.prevMode === 'play') { haptic('die'); saveBest(); }
   }
@@ -254,7 +260,7 @@
     const p = game.p;
     for (let i = 0; i < 60; i++) {
       const a = -Math.PI / 2 + (fx() - 0.5) * 2.2, v = 200 + fx() * 400, life = 1 + fx();
-      game.parts.push({ x: p.x + 16, y: p.y - 16, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life, s: 4 + fx() * 6, c: rgb(PAL[i % PAL.length].map(v => Math.min(255, v + 60))), g: 1 });
+      game.parts.push({ x: p.x + PW / 2, y: p.y - 16, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life, s: 4 + fx() * 6, c: rgb(PAL[i % PAL.length].map(v => Math.min(255, v + 60))), g: 1 });
     }
     showOverlay('win');
   }
@@ -271,13 +277,20 @@
       const wasG = p.g;
       const r = physStep(p, jump, obs);
       if (wasG && !p.g && p.vy < 0) { input.buffer = 0; if (game.mode === 'play') haptic('jump'); }
-      if (!p.g) p.rot += ROT_SPEED * DT;
-      else { const q = Math.PI / 2, target = Math.round(p.rot / q) * q; p.rot += (target - p.rot) * Math.min(1, 30 * DT); }
+      if (!wasG && p.g) p.sag = 3.5; // приземлились — кузов приседает на подвеске
+      p.sag *= Math.exp(-10 * DT);
+      p.wheel += STEP_X / WHEEL_R;
+      // в прыжке нос задирается вверх, на спуске — клюёт вниз
+      const tilt = p.g ? 0 : clamp(p.vy / JUMP_V * 0.3, -0.3, 0.3);
+      p.rot += (tilt - p.rot) * Math.min(1, (p.g ? 20 : 10) * DT);
       if (r === DEAD) return die();
       if (r === FINISH) return win();
       if (game.mode === 'play') game.runBest = Math.max(game.runBest, p.x / LEVEL_LEN);
-      if (p.g && ++game.trail % 5 === 0) {
-        game.parts.push({ x: p.x + 2, y: p.y - 4 - fx() * 6, vx: -60 - fx() * 60, vy: -20 - fx() * 40, life: 0.35, max: 0.35, s: 3 + fx() * 4, c: 'rgba(255,255,255,0.8)', g: 0.2 });
+      if (++game.trail % 7 === 0) { // выхлоп
+        game.parts.push({ x: p.x + PW / 2 - 42, y: p.y - 8, vx: -50 - fx() * 50, vy: -10 - fx() * 25, life: 0.55, max: 0.55, s: 3 + fx() * 3, c: 'rgba(235,235,245,0.75)', g: -0.03, puff: true });
+      }
+      if (p.g && game.trail % 4 === 0) { // пыль из-под колёс
+        game.parts.push({ x: p.x + PW / 2 - 24, y: p.y - 2, vx: -70 - fx() * 60, vy: -15 - fx() * 35, life: 0.3, max: 0.3, s: 2 + fx() * 3, c: 'rgba(255,255,255,0.6)', g: 0.3 });
       }
     } else if (game.mode === 'dead') {
       game.deadT -= DT;
@@ -319,6 +332,81 @@
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
+  // ---------- машина: угловатый седан 80-х в профиль ----------
+  // Цвет кузова меняется в одном месте — CAR.body.
+  const CAR = { body: '#efe4c3', line: '#151515', glass: '#2b3a55', trim: '#7d838b', chrome: '#d9dfe6', tail: '#e0303a', head: '#fff3b0' };
+
+  // cx — центр машины, by — низ колёс; tilt — наклон, wheel — угол колёс,
+  // sag — просадка кузова, lift — насколько «вывешены» колёса в прыжке.
+  // Пропорции «утюга»: длинный плоский капот и багажник, низкая плоская крыша,
+  // почти вертикальные стойки, некрупные колёса, накладки по низу, хромированные бамперы.
+  function drawCar(c, cx, by, tilt, wheel, sag, lift) {
+    c.save();
+    c.translate(cx, by - 14); c.rotate(tilt); c.translate(0, 14 + sag);
+    c.lineJoin = 'round';
+
+    const body = () => {
+      c.beginPath();
+      c.moveTo(-39, -6.5); c.lineTo(-39, -17); c.lineTo(-37.5, -19.5); // корма
+      c.lineTo(-22, -20.5); c.lineTo(-15.5, -30);                       // плоский багажник, задняя стойка
+      c.lineTo(9, -30); c.lineTo(19, -21);                               // плоская крыша, крутое лобовое
+      c.lineTo(37, -19.5); c.lineTo(39, -17.5); c.lineTo(39, -6.5);      // длинный капот, рубленая морда
+      c.closePath();
+    };
+    body(); c.fillStyle = CAR.body; c.fill();
+
+    // накладки по низу кузова
+    c.fillStyle = CAR.trim; c.fillRect(-38, -11, 76, 4.5);
+
+    // стёкла в хромированной окантовке, чёрная средняя стойка
+    c.beginPath(); c.moveTo(-20.5, -21.5); c.lineTo(-14.8, -28.6); c.lineTo(8.4, -28.6); c.lineTo(16.6, -21.5); c.closePath();
+    c.fillStyle = CAR.glass; c.fill();
+    c.lineWidth = 1; c.strokeStyle = CAR.chrome; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.25)';
+    c.beginPath(); c.moveTo(-8, -28.6); c.lineTo(-4, -28.6); c.lineTo(-9.5, -21.5); c.lineTo(-13.5, -21.5); c.closePath(); c.fill();
+    c.fillStyle = CAR.line; c.fillRect(-2.6, -28.8, 2.2, 7.6);
+
+    body(); c.lineWidth = 2; c.strokeStyle = CAR.line; c.stroke();
+
+    // двери, ручки, зеркало
+    c.strokeStyle = 'rgba(21,21,21,0.5)'; c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(-21, -20); c.lineTo(-21, -7.5);
+    c.moveTo(-1.5, -21); c.lineTo(-1.5, -7.5);
+    c.moveTo(18, -20.5); c.lineTo(18, -7.5);
+    c.stroke();
+    c.fillStyle = CAR.line;
+    c.fillRect(-14, -18, 4, 1.5); c.fillRect(6, -18, 4, 1.5);
+    c.fillRect(15, -23.8, 3.5, 2.6);
+
+    // фара, фонарь (красный + оранжевая секция)
+    c.fillStyle = CAR.head; c.fillRect(35.8, -17.6, 3, 4.2);
+    c.fillStyle = CAR.tail; c.fillRect(-39, -18.6, 2.6, 5);
+    c.fillStyle = '#f39a1e'; c.fillRect(-39, -13.6, 2.6, 2);
+
+    // хромированные бамперы
+    c.fillStyle = CAR.chrome; c.strokeStyle = CAR.line; c.lineWidth = 1.4;
+    c.fillRect(35, -11.5, 7.5, 5); c.strokeRect(35, -11.5, 7.5, 5);
+    c.fillRect(-42.5, -11.5, 7.5, 5); c.strokeRect(-42.5, -11.5, 7.5, 5);
+
+    // арки и колёса (колёса не просаживаются вместе с кузовом)
+    for (const wx of [-24, 25]) {
+      c.fillStyle = CAR.line;
+      c.beginPath(); c.arc(wx, -6.5, 9, Math.PI, 0); c.fill();
+      const wy = -WHEEL_R - sag + lift;
+      c.fillStyle = '#1b1b1f';
+      c.beginPath(); c.arc(wx, wy, WHEEL_R, 0, Math.PI * 2); c.fill();
+      c.fillStyle = CAR.chrome;
+      c.beginPath(); c.arc(wx, wy, 4.4, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#6b7178'; // отверстия колпака — по ним видно, что колесо крутится
+      for (let k = 0; k < 6; k++) {
+        const a = wheel + k * Math.PI / 3;
+        c.beginPath(); c.arc(wx + Math.cos(a) * 2.7, wy + Math.sin(a) * 2.7, 0.9, 0, Math.PI * 2); c.fill();
+      }
+    }
+    c.restore();
+  }
+
   function draw() {
     const p = game.p;
     const camX = p.x - PLAYER_SX;
@@ -354,13 +442,13 @@
     const bottom = viewH - offY;
     ctx.fillStyle = rgb(ground);
     ctx.fillRect(camX - 20, GROUND, viewW + 40, bottom - GROUND + 20);
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    for (let gx = Math.floor(camX / 64) * 64; gx < camX + viewW + 64; gx += 64) ctx.fillRect(gx, GROUND, 2, bottom - GROUND);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; // разметка дороги
+    for (let gx = Math.floor(camX / 80) * 80; gx < camX + viewW + 80; gx += 80) ctx.fillRect(gx, GROUND + 20, 40, 4);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(camX - 20, GROUND - 1, viewW + 40, 2);
 
     // финиш
-    const fxX = LEVEL_LEN + SIZE + 40;
+    const fxX = LEVEL_LEN + PW + 60;
     if (fxX < camX + viewW + 40) {
       for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) {
         ctx.fillStyle = (i + j) % 2 ? '#ffffff' : '#151515';
@@ -390,22 +478,19 @@
     for (const q of game.parts) {
       ctx.globalAlpha = clamp(q.life / q.max, 0, 1);
       ctx.fillStyle = q.c;
-      ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s);
+      if (q.puff) { // клубы дыма растут и тают
+        ctx.beginPath(); ctx.arc(q.x, q.y, q.s * (1.6 - q.life / q.max), 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s);
+      }
     }
     ctx.globalAlpha = 1;
 
-    // кубик
+    // машина
     if (game.mode !== 'dead') {
-      ctx.save();
-      ctx.translate(p.x + SIZE / 2, p.y - SIZE / 2);
-      ctx.rotate(p.rot);
-      ctx.fillStyle = '#ffd23f'; ctx.fillRect(-16, -16, 32, 32);
-      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(-12, -12, 24, 5);
-      ctx.lineWidth = 3; ctx.strokeStyle = '#151515'; ctx.strokeRect(-14.5, -14.5, 29, 29);
-      ctx.fillStyle = '#151515';
-      ctx.fillRect(1, -6, 4, 8); ctx.fillRect(8, -6, 4, 8); // глаза смотрят вперёд
-      ctx.fillRect(2, 6, 9, 2);
-      ctx.restore();
+      const air = p.g ? 0 : clamp(Math.abs(p.vy) / JUMP_V * 2.5, 0, 2);
+      const rumble = p.g ? Math.sin(p.f * 1.7) * 0.35 : 0; // двигатель чуть трясёт кузов
+      drawCar(ctx, p.x + PW / 2, p.y, p.rot, p.wheel, p.sag + rumble, air);
     }
 
     // HUD — в экранных координатах
@@ -428,17 +513,16 @@
     if (RENDER && BRAND) {
       const bh = 34, y0 = H - bh;
       ctx.fillStyle = 'rgba(0,0,0,0.88)'; ctx.fillRect(0, y0, W, bh);
-      ctx.fillStyle = '#ffd23f'; roundRect(12, y0 + 8, 18, 18, 4); ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = '#151515'; ctx.stroke();
-      ctx.fillStyle = '#151515'; ctx.fillRect(21, y0 + 13, 2, 4); ctx.fillRect(25, y0 + 13, 2, 4);
+      ctx.save(); ctx.translate(30, y0 + 25); ctx.scale(0.42, 0.42); drawCar(ctx, 0, 0, 0, 0.4, 0, 0); ctx.restore();
       ctx.font = '600 13px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       const parts = BRAND.split(' — ');
+      const tx = 54;
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(parts[0], 40, y0 + bh / 2 + 1);
+      ctx.fillText(parts[0], tx, y0 + bh / 2 + 1);
       if (parts.length > 1) {
         const w0 = ctx.measureText(parts[0]).width;
         ctx.font = '400 13px Inter, system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillText(' — ' + parts.slice(1).join(' — '), 40 + w0, y0 + bh / 2 + 1);
+        ctx.fillText(' — ' + parts.slice(1).join(' — '), tx + w0, y0 + bh / 2 + 1);
       }
     }
   }
@@ -455,8 +539,8 @@
       ovText.textContent = 'Попыток: ' + game.attempt + '. Позови друга — пусть пройдёт быстрее.';
       ovBtn.textContent = 'Ещё раз';
     } else {
-      ovTitle.textContent = 'Прыг-Куб';
-      ovText.textContent = 'Доведи кубик до финиша. Тап или пробел — прыжок, держи — прыгай подряд.' +
+      ovTitle.textContent = 'Прыг-Седан';
+      ovText.textContent = 'Доведи седан до финиша. Тап или пробел — прыжок, держи — прыгай подряд.' +
         (game.best > 0 ? ' Рекорд: ' + Math.floor(game.best * 100) + '%.' : '');
       ovBtn.textContent = 'Играть';
     }
@@ -474,6 +558,15 @@
   // ---------- запуск ----------
   reset('demo');
   resize();
+
+  // машина-логотип на стартовом экране — рисуется тем же кодом, что и в игре
+  const logo = document.getElementById('logo');
+  if (logo) {
+    const d = Math.min(window.devicePixelRatio || 1, 3), lc = logo.getContext('2d');
+    logo.width = 140 * d; logo.height = 72 * d;
+    lc.setTransform(1.6 * d, 0, 0, 1.6 * d, 70 * d, 64 * d);
+    drawCar(lc, 0, 0, -0.06, 0.4, 0, 0);
+  }
 
   if (RENDER) {
     ov.classList.add('hidden');
