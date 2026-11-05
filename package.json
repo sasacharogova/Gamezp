@@ -6,13 +6,15 @@
   "scripts": {
     "bot": "node bot/index.js",
     "render": "node scripts/render-preview.js",
-    "check": "node scripts/check.js"
+    "check": "node scripts/check.js",
+    "widget": "node scripts/build-widget.js"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
     "ffmpeg-static": "^5.2.0",
-    "playwright": "^1.48.0"
+    "playwright": "^1.48.0",
+    "terser": "^5.31.0"
   }
 }

@@ -37,6 +37,9 @@
   const SEED = parseInt(params.get('seed') || '7', 10) || 7;
   const BRAND = params.get('brand') || '';
   const RSCALE = clamp(parseFloat(params.get('scale') || '2') || 2, 1, 4);
+  // Сборка-виджет для HTML-сообщений Telegram (scripts/build-widget.js): игра живёт прямо в пузыре чата,
+  // без экрана-оверлея — демо крутится само, тап запускает игру.
+  const WIDGET = !RENDER && !!window.__WIDGET__;
 
   // ---------- мир ----------
   const W = 640, H = 400;          // «эталонный» кадр (и размер превью-видео в логических px)
@@ -182,12 +185,14 @@
   }
 
   let level = null, plan = null;
+  const planT0 = performance.now();
   for (let sd = SEED; sd < SEED + 200 && !plan; sd++) {
     const obs = buildLevel(sd);
     const pl = makePlan(obs);
     if (pl) { level = { seed: sd, obs }; plan = pl; }
   }
   if (!plan) { level = { seed: SEED, obs: buildLevel(SEED) }; plan = new Set(); }
+  const planMs = Math.round(performance.now() - planT0);
   const obs = level.obs;
 
   // ---------- Telegram ----------
@@ -313,7 +318,8 @@
       return;
     }
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const cw = window.innerWidth, ch = window.innerHeight;
+    const cw = (WIDGET ? canvas.clientWidth : window.innerWidth) || 600;
+    const ch = (WIDGET ? canvas.clientHeight : window.innerHeight) || 375;
     canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
     const s = Math.min(cw / 560, ch / 360); // гарантируем видимую область минимум 560×360
     scale = s * dpr; viewW = cw / s; viewH = ch / s;
@@ -509,6 +515,18 @@
       if (game.best > 0) { ctx.textAlign = 'right'; ctx.fillText('Рекорд ' + Math.floor(game.best * 100) + '%', viewW - 14, by + 4); }
     }
 
+    // виджет: подсказка поверх демо и экран победы — без DOM, прямо на холсте
+    if (WIDGET && (game.mode === 'demo' || game.mode === 'win')) {
+      const msg = game.mode === 'win' ? 'Ты — звезда провинции! Тапни, чтобы ещё раз' : 'Тапни, чтобы играть';
+      ctx.font = '700 16px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(msg).width + 32, ty = Math.round(viewH * 0.3);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRect((viewW - tw) / 2, ty - 18, tw, 36, 18); ctx.fill();
+      ctx.globalAlpha = 0.8 + 0.2 * Math.sin(performance.now() / 260);
+      ctx.fillStyle = '#ffffff'; ctx.fillText(msg, viewW / 2, ty + 1);
+      ctx.globalAlpha = 1;
+    }
+
     // подпись-плашка снизу (только в превью-видео)
     if (RENDER && BRAND) {
       const bh = 34, y0 = H - bh;
@@ -534,6 +552,7 @@
   const ovBtn = document.getElementById('ov-btn');
 
   function showOverlay(kind) {
+    if (!ov) return; // в виджете оверлея нет
     if (kind === 'win') {
       ovTitle.textContent = 'Ты — звезда провинции!';
       ovText.textContent = 'Попыток: ' + game.attempt + '. Позови друга — пусть пройдёт быстрее.';
@@ -547,13 +566,15 @@
     ov.classList.remove('hidden');
     game.overlay = true;
   }
-  function hideOverlay() { ov.classList.add('hidden'); game.overlay = false; }
+  function hideOverlay() { if (ov) ov.classList.add('hidden'); game.overlay = false; }
   function startPlay() { hideOverlay(); game.attempt = 1; game.runBest = 0; reset('play'); }
 
   // ---------- управление ----------
   const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW', 'Enter'];
   function press() { if (game.overlay) return; input.hold = true; input.buffer = 0.12; }
   function release() { input.hold = false; }
+  // «ждём старта»: открыт экран меню, а в виджете — крутится демо или показан экран победы
+  function idle() { return game.overlay || (WIDGET && (game.mode === 'demo' || game.mode === 'win')); }
 
   // ---------- запуск ----------
   reset('demo');
@@ -569,11 +590,17 @@
   }
 
   if (RENDER) {
-    ov.classList.add('hidden');
+    if (ov) ov.classList.add('hidden');
   } else {
-    showOverlay('start'); // за меню крутится демо-проход автопилота
+    if (WIDGET) {
+      const fb = document.getElementById('fb'); // статичная заглушка на случай, если скрипт не запустится
+      if (fb) fb.style.display = 'none';
+      if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+    } else {
+      showOverlay('start'); // за меню крутится демо-проход автопилота
+    }
     window.addEventListener('resize', resize);
-    canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
+    canvas.addEventListener('pointerdown', e => { e.preventDefault(); if (idle()) startPlay(); else press(); });
     window.addEventListener('pointerup', release);
     window.addEventListener('pointercancel', release);
     window.addEventListener('blur', release);
@@ -581,10 +608,10 @@
       if (!JUMP_KEYS.includes(e.code)) return;
       e.preventDefault();
       if (e.repeat) return;
-      if (game.overlay) startPlay(); else press();
+      if (idle()) startPlay(); else press();
     });
     window.addEventListener('keyup', e => { if (JUMP_KEYS.includes(e.code)) release(); });
-    ovBtn.addEventListener('click', e => { e.stopPropagation(); startPlay(); });
+    if (ovBtn) ovBtn.addEventListener('click', e => { e.stopPropagation(); startPlay(); });
     document.addEventListener('contextmenu', e => e.preventDefault());
 
     let last = performance.now(), acc = 0;
@@ -603,7 +630,7 @@
     advance(sec) { const n = Math.round(sec / DT); for (let i = 0; i < n; i++) tick(); draw(); },
     frame() { return canvas.toDataURL('image/png').split(',')[1]; },
     stats() {
-      return { seed: level.seed, obstacles: obs.length, jumps: plan.size, mode: game.mode, x: game.p.x, wins: game.wins, deaths: game.deaths };
+      return { seed: level.seed, obstacles: obs.length, jumps: plan.size, planMs, mode: game.mode, x: game.p.x, wins: game.wins, deaths: game.deaths };
     },
   };
 })();
