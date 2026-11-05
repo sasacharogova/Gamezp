@@ -1,0 +1,6 @@
+{
+  "installCommand": "echo \"зависимости для сайта и бота не нужны\"",
+  "redirects": [
+    { "source": "/", "destination": "/webapp/", "permanent": false }
+  ]
+}

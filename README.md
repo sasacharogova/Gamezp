@@ -10,10 +10,10 @@
 
 | Что видно в чате | Что это на самом деле | Где в коде |
 |---|---|---|
-| Игра «прямо в сообщении» | **MP4 без звука**, отправленное через `sendAnimation`. Telegram показывает его как GIF и крутит по кругу. Интерактива внутри сообщения нет: Telegram не запускает HTML/JS в сообщениях. | `assets/preview.mp4`, `bot/index.js` |
+| Игра «прямо в сообщении» | **MP4 без звука**, отправленное через `sendAnimation`. Telegram показывает его как GIF и крутит по кругу. Интерактива внутри сообщения нет: Telegram не запускает HTML/JS в сообщениях. | `assets/preview.mp4`, `api/telegram.js` |
 | Подпись-плашка снизу кадра | Нарисована прямо в видео | `--brand` в `scripts/render-preview.js` |
-| Кнопка под сообщением со стрелкой ↗ | Inline-кнопка типа `web_app`, открывает Mini App | `keyboard()` в `bot/index.js` |
-| Кнопка слева от поля ввода («Catalogue» на видео) | Menu Button бота (`setChatMenuButton`), тоже открывает Mini App | `main()` в `bot/index.js` |
+| Кнопка под сообщением со стрелкой ↗ | Inline-кнопка типа `web_app`, открывает Mini App | `keyboard()` в `bot/texts.js` |
+| Кнопка слева от поля ввода («Catalogue» на видео) | Menu Button бота (`setChatMenuButton`), тоже открывает Mini App | `api/telegram.js` |
 | Сама игра | Обычная веб-страница с `<canvas>` и SDK `telegram-web-app.js` | `webapp/` |
 
 Главный трюк: видео рендерится **из того же кода игры**. Играет автопилот, который заранее
@@ -21,29 +21,88 @@
 
 ```
 webapp/index.html, game.js     — игра (Mini App): физика, уровень, автопилот, отрисовка машины
+api/telegram.js                 — бот для Vercel (вебхук, без своего сервера)
+bot/texts.js                    — подпись, кнопки, команды бота
+bot/index.js                    — тот же бот для своего компьютера/сервера (long polling)
 scripts/render-preview.js       — headless Chromium + ffmpeg → assets/preview.mp4
 scripts/check.js                — проверка: автопилот проходит уровень, игра запускается
-bot/index.js                    — бот без зависимостей (Node 20+)
-.github/workflows/pages.yml     — автодеплой webapp/ на GitHub Pages
 ```
 
-## Запуск
+## Как выложить (пошагово)
 
-1. **Создать бота.** В [@BotFather](https://t.me/BotFather): `/newbot`, сохранить токен.
-2. **Опубликовать игру по https** (Telegram открывает Mini App только по https):
-   - GitHub Pages: Settings → Pages → Source: **GitHub Actions**, затем влить ветку в `main`.
-     Игра появится по адресу `https://<user>.github.io/<repo>/`. Для приватного репозитория
-     Pages требует платный план.
-   - или перетащить папку `webapp/` в Netlify Drop, Vercel или Cloudflare Pages.
-3. **Настроить и запустить бота:**
-   ```bash
-   cp .env.example .env      # вписать BOT_TOKEN и WEBAPP_URL
-   npm run bot               # Node 20+, npm install для бота не нужен
-   ```
-   Написать боту `/start`.
+Всё бесплатно и без своего сервера: игру и бота держит [Vercel](https://vercel.com).
 
-Бот работает через long polling, поэтому подойдёт любой сервер или VPS (Railway, Render, Fly.io…),
-где процесс живёт постоянно.
+### Шаг 1. Создать бота
+
+1. Открыть в Telegram [@BotFather](https://t.me/BotFather), отправить `/newbot`.
+2. Имя: `Звезда провинции`. Username: любой свободный, должен заканчиваться на `bot`
+   (например, `zvezda_provincii_bot`).
+3. BotFather пришлёт **токен** вида `1234567890:AAH…`. Это пароль от бота: никому не показывать
+   и не коммитить в репозиторий. Если утёк, в BotFather `/revoke` выдаст новый.
+
+### Шаг 2. Выложить на Vercel
+
+1. Зайти на [vercel.com](https://vercel.com) → **Sign Up** → **Continue with GitHub**.
+2. **Add New… → Project** → в списке репозиториев выбрать `Gamezp` → **Import**.
+   Если репозитория нет в списке: **Adjust GitHub App Permissions** и дать доступ к нему.
+3. На экране настройки:
+   - **Framework Preset:** `Other`, остальное в Build не трогать;
+   - раскрыть **Environment Variables**: Key `BOT_TOKEN`, Value — токен из шага 1 → **Add**.
+4. Нажать **Deploy** и подождать около минуты. Vercel покажет адрес проекта,
+   например `https://gamezp.vercel.app`.
+
+### Шаг 3. Подключить бота к сайту
+
+Открыть в браузере (подставив свой адрес):
+
+```
+https://gamezp.vercel.app/api/telegram?setup
+```
+
+Должно появиться «✅ Готово! Бот @… подключён». Это делается один раз.
+
+### Шаг 4. Проверить
+
+- Открыть бота в Telegram → **Старт**. Придёт гифка с машиной и кнопкой «🎮 Играть».
+- Слева от поля ввода появится кнопка «Играть».
+- Игра открывается и в обычном браузере: `https://gamezp.vercel.app`.
+
+### Шаг 5 (по желанию). Оформить бота в @BotFather
+
+- `/setuserpic` — аватарка бота;
+- `/setdescription` — текст, который видят до нажатия «Старт»;
+- `/setabouttext` — короткое описание в профиле;
+- **Bot Settings → Configure Mini App → Enable Mini App** с адресом
+  `https://gamezp.vercel.app/webapp/`: появится кнопка «Открыть» в профиле бота
+  и прямая ссылка `t.me/<бот>?startapp`, которой удобно делиться.
+
+### Если что-то не работает
+
+| Что видно | Что сделать |
+|---|---|
+| `?setup` пишет «Не задан BOT_TOKEN» | Vercel → проект → **Settings → Environment Variables** → добавить `BOT_TOKEN`, затем **Deployments → … → Redeploy** (переменные применяются только к новому деплою) |
+| `?setup` пишет `Unauthorized` | Токен скопирован не полностью или с пробелом. Исправить переменную, Redeploy, снова `?setup` |
+| Бот молчит на «Старт» | Ещё раз открыть `?setup`. Если бот запущен где-то через `npm run bot`, остановить его: работает либо Vercel, либо `npm run bot`, не оба сразу |
+| Игра не открывается у части игроков | Некоторые провайдеры ограничивают зарубежные хостинги. Выложить папку `webapp/` на другой хостинг и указать его адрес в переменной `WEBAPP_URL` в Vercel, затем Redeploy и `?setup` |
+
+### Как обновлять
+
+Любой коммит в репозиторий Vercel выкладывает сам примерно за минуту. Снова открывать `?setup`
+нужно, только если сменился адрес сайта или токен.
+
+Тексты под гифкой и на кнопках задаются в `bot/texts.js` или переменными `CAPTION`, `BUTTON_TEXT`,
+`MENU_TEXT` в Vercel (после изменения переменных нужен Redeploy).
+
+### Вариант без Vercel: свой компьютер или сервер
+
+Игру нужно выложить на любой https-хостинг, а бота держать запущенным:
+
+```bash
+cp .env.example .env      # вписать BOT_TOKEN и WEBAPP_URL (адрес папки webapp/)
+npm run bot               # Node 20+, npm install для бота не нужен
+```
+
+Бот работает, пока запущен процесс, поэтому для постоянной работы нужен сервер или VPS.
 
 ## Своё превью-видео
 

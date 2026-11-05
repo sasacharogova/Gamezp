@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /*
- * Telegram-бот без зависимостей (Node 20+, встроенные fetch/FormData).
+ * Telegram-бот без зависимостей (Node 20+, встроенные fetch/FormData) — вариант «свой компьютер/сервер».
+ * Если выкладываете на Vercel, этот файл не нужен: там бота обслуживает api/telegram.js.
  *
  * Что делает — ровно то, что на видео:
  *   1. на /start присылает «гифку» (assets/preview.mp4 через sendAnimation) с подписью;
@@ -12,7 +13,7 @@
  *   WEBAPP_URL   — https-адрес, где лежит папка webapp/ (обязательно)
  *   BUTTON_TEXT  — текст кнопки под сообщением (по умолчанию «🎮 Играть»)
  *   MENU_TEXT    — текст кнопки меню (по умолчанию «Играть»)
- *   CAPTION      — подпись под гифкой (HTML)
+ *   CAPTION      — подпись под гифкой (HTML); тексты по умолчанию — в bot/texts.js
  */
 'use strict';
 const fs = require('fs');
@@ -25,10 +26,7 @@ const TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL;
 const API = (process.env.TELEGRAM_API || 'https://api.telegram.org').replace(/\/$/, '');
 const PREVIEW = path.resolve(ROOT, process.env.PREVIEW_PATH || 'assets/preview.mp4');
-const BUTTON_TEXT = process.env.BUTTON_TEXT || '🎮 Играть';
-const MENU_TEXT = process.env.MENU_TEXT || 'Играть';
-const CAPTION = process.env.CAPTION ||
-  '<b>Звезда провинции</b> — мини-игра прямо в Telegram.\nЖми «Играть» и докажи, кто на районе главный 👇';
+const { CAPTION, MENU_TEXT, COMMANDS, START_RE, keyboard } = require('./texts');
 const CACHE = path.join(__dirname, '.file-cache.json');
 
 if (!TOKEN) fail('Не задан BOT_TOKEN (возьмите у @BotFather и пропишите в .env)');
@@ -69,18 +67,10 @@ function cacheKey(botId) { const st = fs.statSync(PREVIEW); return `${botId}:${s
 function readCache() { try { return JSON.parse(fs.readFileSync(CACHE, 'utf8')); } catch (e) { return {}; } }
 function writeCache(obj) { try { fs.writeFileSync(CACHE, JSON.stringify(obj, null, 2)); } catch (e) { /* не критично */ } }
 
-function keyboard(chat) {
-  // web_app-кнопки в сообщениях работают только в личке; в группах даём обычную ссылку.
-  const btn = chat.type === 'private'
-    ? { text: BUTTON_TEXT, web_app: { url: WEBAPP_URL } }
-    : { text: BUTTON_TEXT, url: WEBAPP_URL };
-  return { inline_keyboard: [[btn]] };
-}
-
 async function sendPreview(chat, botId) {
   const key = cacheKey(botId);
   const cache = readCache();
-  const base = { chat_id: chat.id, caption: CAPTION, parse_mode: 'HTML', reply_markup: keyboard(chat) };
+  const base = { chat_id: chat.id, caption: CAPTION, parse_mode: 'HTML', reply_markup: keyboard(chat, WEBAPP_URL) };
 
   if (cache[key]) {
     try { return await api('sendAnimation', { ...base, animation: cache[key] }); }
@@ -104,7 +94,7 @@ async function sendPreview(chat, botId) {
 async function main() {
   const me = await api('getMe');
   await api('deleteWebhook', {}); // работаем через long polling
-  await api('setMyCommands', { commands: [{ command: 'start', description: 'Показать игру' }] });
+  await api('setMyCommands', { commands: COMMANDS });
   await api('setChatMenuButton', { menu_button: { type: 'web_app', text: MENU_TEXT, web_app: { url: WEBAPP_URL } } });
   console.log(`✅ @${me.username} запущен. Mini App: ${WEBAPP_URL}`);
 
@@ -122,7 +112,7 @@ async function main() {
       offset = u.update_id + 1;
       const m = u.message;
       if (!m || typeof m.text !== 'string') continue;
-      if (/^\/(start|play)(@\w+)?(\s|$)/.test(m.text)) {
+      if (START_RE.test(m.text)) {
         try { await sendPreview(m.chat, me.id); }
         catch (e) { console.error('sendAnimation:', e.message); }
       }
