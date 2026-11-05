@@ -1,0 +1,18 @@
+{
+  "name": "gamezp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Telegram-бот с мини-игрой: «гифка»-превью в чате + сама игра в Mini App",
+  "scripts": {
+    "bot": "node bot/index.js",
+    "render": "node scripts/render-preview.js",
+    "check": "node scripts/check.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "playwright": "^1.48.0"
+  }
+}
