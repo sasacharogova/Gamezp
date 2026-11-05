@@ -25,7 +25,7 @@ const fps = Number(arg('fps', 30));
 const scale = Number(arg('scale', 2));
 const start = Number(arg('start', 0.6));
 const seed = arg('seed', '');
-const brand = arg('brand', 'Прыг-Седан — мини-игра прямо в Telegram');
+const brand = arg('brand', 'Звезда провинции — мини-игра прямо в Telegram');
 const out = path.resolve(arg('out', path.join(__dirname, '..', 'assets', 'preview.mp4')));
 
 function ffmpegBinary() {

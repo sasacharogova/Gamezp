@@ -1,5 +1,5 @@
 /*
- * Прыг-Седан — мини-раннер для Telegram Mini App: угловатый седан 80-х прыгает через шипы и блоки.
+ * Звезда провинции — мини-раннер для Telegram Mini App: угловатый седан 80-х прыгает через шипы и блоки.
  *
  * Один и тот же код работает в двух режимах:
  *   - обычный: игра для человека (тап / пробел — прыжок), открывается кнопкой бота;
@@ -215,10 +215,10 @@
   }
 
   // ---------- рекорд ----------
-  function loadBest() { try { return parseFloat(localStorage.getItem('prygsedan.best')) || 0; } catch (e) { return 0; } }
+  function loadBest() { try { return parseFloat(localStorage.getItem('zvezda-provincii.best')) || 0; } catch (e) { return 0; } }
   function saveBest() {
     if (game.runBest > game.best) game.best = game.runBest;
-    try { localStorage.setItem('prygsedan.best', String(game.best)); } catch (e) { /* приватный режим */ }
+    try { localStorage.setItem('zvezda-provincii.best', String(game.best)); } catch (e) { /* приватный режим */ }
   }
 
   // ---------- состояние игры ----------
@@ -535,11 +535,11 @@
 
   function showOverlay(kind) {
     if (kind === 'win') {
-      ovTitle.textContent = 'Пройдено!';
+      ovTitle.textContent = 'Ты — звезда провинции!';
       ovText.textContent = 'Попыток: ' + game.attempt + '. Позови друга — пусть пройдёт быстрее.';
       ovBtn.textContent = 'Ещё раз';
     } else {
-      ovTitle.textContent = 'Прыг-Седан';
+      ovTitle.textContent = 'Звезда провинции';
       ovText.textContent = 'Доведи седан до финиша. Тап или пробел — прыжок, держи — прыгай подряд.' +
         (game.best > 0 ? ' Рекорд: ' + Math.floor(game.best * 100) + '%.' : '');
       ovBtn.textContent = 'Играть';

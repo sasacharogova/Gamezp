@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Прыг-Седан</title>
+  <title>Звезда провинции</title>
   <!-- SDK Telegram Mini Apps: даёт Telegram.WebApp (expand, хаптика, цвета шапки). Вне Telegram просто ничего не делает. -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
@@ -25,7 +25,7 @@
     #overlay.hidden { opacity: 0; pointer-events: none; }
     .card { max-width: 340px; text-align: center; }
     .logo { display: block; width: 140px; height: 72px; margin: 0 auto 6px; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, .25)); }
-    h1 { margin: 0 0 8px; font-size: 40px; line-height: 1.05; text-shadow: 0 3px 0 rgba(0, 0, 0, .3); }
+    h1 { margin: 0 0 8px; font-size: clamp(30px, 9vw, 40px); line-height: 1.05; text-shadow: 0 3px 0 rgba(0, 0, 0, .3); }
     p { margin: 0 0 20px; font-size: 15px; line-height: 1.4; opacity: .92; }
     button {
       font: inherit; font-size: 18px; font-weight: 700; color: #151515;
@@ -40,7 +40,7 @@
   <div id="overlay">
     <div class="card">
       <canvas id="logo" class="logo"></canvas>
-      <h1 id="ov-title">Прыг-Седан</h1>
+      <h1 id="ov-title">Звезда провинции</h1>
       <p id="ov-text"></p>
       <button id="ov-btn" type="button">Играть</button>
     </div>
