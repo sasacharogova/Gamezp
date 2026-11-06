@@ -32,6 +32,8 @@ const mock = http.createServer((req, res) => {
     const reply = r => res.end(JSON.stringify({ ok: true, result: r }));
     if (method === 'getMe') return reply({ id: 42, is_bot: true, username: 'zvezda_test_bot' });
     if (method === 'createInvoiceLink') return reply('https://t.me/$test-invoice');
+    if (method === 'getMyStarBalance') return reply({ amount: calls.some(c => c.method === 'sendMessage' && /Начислено/.test(c.payload.text)) ? 50 : 0 });
+    if (method === 'getStarTransactions') return reply({ transactions: [{ id: 't1', amount: 50, date: Math.floor(Date.now() / 1000), source: { type: 'user', user, invoice_payload: 'coins_s:777' } }] });
     if (method === 'getUpdates') {
       const send = () => reply(queue.splice(0).map(u => Object.assign({ update_id: updateId++ }, u)));
       if (queue.length) return send();
@@ -64,7 +66,7 @@ function check(cond, what) {
 
 (async () => {
   const bot = spawn(process.execPath, [path.join(__dirname, '..', 'bot', 'index.js')], {
-    env: { ...process.env, BOT_TOKEN: TOKEN, PORT: String(BOT_PORT), RAILWAY_PUBLIC_DOMAIN: 'zvezda.example', DATA_DIR: dataDir, TELEGRAM_API: `http://127.0.0.1:${MOCK_PORT}`, SUPPORT_CONTACT: '@support' },
+    env: { ...process.env, BOT_TOKEN: TOKEN, PORT: String(BOT_PORT), RAILWAY_PUBLIC_DOMAIN: 'zvezda.example', DATA_DIR: dataDir, TELEGRAM_API: `http://127.0.0.1:${MOCK_PORT}`, SUPPORT_CONTACT: '@support', ADMIN_ID: '777' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -118,6 +120,14 @@ function check(cond, what) {
     queue.push({ message: { from: user, chat: { id: 777, type: 'private' }, text: '/paysupport' } });
     await waitFor(() => calls.find(c => c.method === 'sendMessage' && /@support/.test(c.payload.text)), '/paysupport');
     check(true, '/paysupport отвечает контактом поддержки');
+
+    queue.push({ message: { from: user, chat: { id: 777, type: 'private' }, text: '/stars' } });
+    const stars = await waitFor(() => calls.find(c => c.method === 'sendMessage' && /Баланс бота/.test(c.payload.text)), '/stars');
+    check(/Баланс бота: 50/.test(stars.payload.text) && /\+50 ⭐/.test(stars.payload.text) && /1 на 50/.test(stars.payload.text), '/stars владельцу: баланс бота 50 ⭐, поступление и сверка с базой');
+    queue.push({ message: { from: { id: 9, first_name: 'Чужой' }, chat: { id: 9, type: 'private' }, text: '/stars' } });
+    await waitFor(() => calls.find(c => c.method === 'sendMessage' && c.payload.chat_id === 9), '/stars чужому');
+    check(/только для владельца/.test(calls.find(c => c.method === 'sendMessage' && c.payload.chat_id === 9).payload.text), '/stars чужим не показывает баланс');
+    check(/Баланс бота теперь: 50/.test(log), 'после оплаты в логах виден баланс звёзд бота');
 
     await sleep(500);
     const db = JSON.parse(fs.readFileSync(path.join(dataDir, 'db.json'), 'utf8'));

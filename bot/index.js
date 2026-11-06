@@ -20,6 +20,8 @@
  *   CAPTION      — подпись под гифкой (HTML); тексты по умолчанию — в bot/texts.js
  *   SUPPORT_CONTACT — куда писать по покупкам (например @username), показывается в /paysupport
  *   DATA_DIR     — папка для базы игроков; на Railway подставляется путь подключённого Volume
+ *   ADMIN_ID     — ваш Telegram ID (узнать: команда /myid), через запятую можно несколько:
+ *                  им доступна команда /stars — баланс звёзд бота и последние поступления
  */
 'use strict';
 const fs = require('fs');
@@ -37,6 +39,7 @@ const PREVIEW = path.resolve(ROOT, process.env.PREVIEW_PATH || 'assets/preview.m
 const { CAPTION, MENU_TEXT, COMMANDS, START_RE, PAYSUPPORT, TERMS, keyboard } = require('./texts');
 const CACHE = path.join(__dirname, '.file-cache.json');
 const DATA_DIR = process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(ROOT, 'data');
+const ADMIN_IDS = String(process.env.ADMIN_ID || '').split(',').map(s => s.trim()).filter(Boolean);
 
 if (!TOKEN) fail('Не задан BOT_TOKEN (возьмите у @BotFather; на Railway — вкладка Variables, локально — файл .env)');
 if (!WEBAPP_URL) {
@@ -125,6 +128,30 @@ async function send(chatId, text) {
   catch (e) { console.error('sendMessage:', e.message); }
 }
 
+// Звёзды за покупки зачисляются на баланс самого бота; вывести их может владелец бота через Fragment.
+async function starBalance() {
+  const r = await api('getMyStarBalance', {});
+  return r.amount + (r.nanostar_amount ? r.nanostar_amount / 1e9 : 0);
+}
+
+async function starsReport() {
+  const balance = await starBalance();
+  const tx = (await api('getStarTransactions', { limit: 10 })).transactions || [];
+  const pays = Object.values(store.db.payments).filter(p => !p.error);
+  const monthAgo = Date.now() - 30 * 24 * 3600 * 1000;
+  const month = pays.filter(p => p.at >= monthAgo);
+  const lines = tx.slice(0, 10).map(t => {
+    const d = new Date(t.date * 1000).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const who = t.source ? (t.source.user ? t.source.user.first_name : t.source.type) : t.receiver ? '→ ' + t.receiver.type : '';
+    return `${d}  ${t.source ? '+' : '−'}${t.amount} ⭐  ${who}`;
+  });
+  return `<b>Баланс бота: ${balance} ⭐</b>\n` +
+    `Покупок в игре за 30 дней: ${month.length} на ${month.reduce((a, p) => a + p.stars, 0)} ⭐ (всего ${pays.length})\n\n` +
+    (lines.length ? '<b>Последние операции</b>\n<code>' + lines.join('\n') + '</code>\n\n' : '') +
+    'Вывести звёзды: профиль бота → Изменить → Баланс → вывод через Fragment ' +
+    '(обычно через 21 день после покупки и от 1000 ⭐).';
+}
+
 async function onUpdate(u, me) {
   if (u.pre_checkout_query) { // Telegram спрашивает перед списанием звёзд
     const q = u.pre_checkout_query, error = game.checkPreCheckout(q);
@@ -138,7 +165,10 @@ async function onUpdate(u, me) {
   if (m.successful_payment) {
     const r = game.applyPayment(m.successful_payment, m.from.id);
     console.log(`⭐ Оплата ${m.successful_payment.total_amount} XTR от ${m.from.id}: ${r.status}${r.pack ? ' ' + r.pack.id : ''}`);
-    if (r.status === 'ok') await send(m.chat.id, `✅ Начислено ${r.pack.coins.toLocaleString('ru-RU')} монет. Возвращайся в игру!`);
+    if (r.status === 'ok') {
+      await send(m.chat.id, `✅ Начислено ${r.pack.coins.toLocaleString('ru-RU')} монет. Возвращайся в игру!`);
+      starBalance().then(b => console.log(`⭐ Баланс бота теперь: ${b} звёзд`)).catch(e => console.error('getMyStarBalance:', e.message));
+    }
     else if (r.status === 'unknown') await send(m.chat.id, 'Оплата получена, но заказ не распознан. Напиши /paysupport — разберёмся.');
     return; // повтор того же платежа — молча
   }
@@ -146,6 +176,12 @@ async function onUpdate(u, me) {
   if (START_RE.test(m.text)) await sendPreview(m.chat, me.id);
   else if (/^\/paysupport(@\w+)?(\s|$)/.test(m.text)) await send(m.chat.id, PAYSUPPORT);
   else if (/^\/terms(@\w+)?(\s|$)/.test(m.text)) await send(m.chat.id, TERMS);
+  else if (/^\/myid(@\w+)?(\s|$)/.test(m.text)) {
+    await send(m.chat.id, `Ваш Telegram ID: <code>${m.from.id}</code>\nВладельцу: впишите его в переменную ADMIN_ID, чтобы видеть баланс звёзд командой /stars.`);
+  } else if (/^\/stars(@\w+)?(\s|$)/.test(m.text)) {
+    if (!ADMIN_IDS.includes(String(m.from.id))) await send(m.chat.id, 'Команда только для владельца бота.');
+    else await send(m.chat.id, await starsReport().catch(e => 'Не удалось получить баланс: ' + e.message));
+  }
   else if (!m.text.startsWith('/')) { // обычные сообщения (например, вопросы по покупкам) видны в логах
     console.log(`📩 Сообщение от ${m.from.id}${m.from.username ? ' @' + m.from.username : ''}: ${m.text.slice(0, 500)}`);
   }
@@ -157,6 +193,8 @@ async function main() {
   await api('setMyCommands', { commands: COMMANDS });
   await api('setChatMenuButton', { menu_button: { type: 'web_app', text: MENU_TEXT, web_app: { url: WEBAPP_URL } } });
   console.log(`✅ @${me.username} запущен. Mini App: ${WEBAPP_URL}`);
+  try { console.log(`⭐ Баланс бота: ${await starBalance()} звёзд — сюда приходят оплаты из игры`); }
+  catch (e) { console.warn('⚠️  Не удалось узнать баланс звёзд:', e.message); }
   if (!process.env.SUPPORT_CONTACT) console.warn('⚠️  Не задан SUPPORT_CONTACT — укажите, куда писать по покупкам (например @ваш_ник); он показывается в /paysupport');
 
   let offset = 0;
