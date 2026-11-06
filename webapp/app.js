@@ -180,8 +180,8 @@
   function renderShop() {
     $('#packs').innerHTML = C.PACKS.map(p => `<div class="card pack">
       <span class="big">${COIN}${fmt(p.coins)}</span>
-      <span class="info"><b>${p.title}</b><small>${coins(p.coins)} за ${p.stars} ⭐</small></span>
-      <button class="btn small buy" data-pack="${p.id}"${canPay() ? '' : ' disabled'}>${p.stars} ⭐</button>
+      <span class="info"><b>${p.title}</b><small>≈\u00a0${fmt(Math.round(p.stars * C.STAR_RUB / 10) * 10)}\u00a0₽</small></span>
+      <button class="btn small buy" data-pack="${p.id}"${canPay() ? '' : ' disabled'}>${fmt(p.stars)} ⭐</button>
     </div>`).join('');
     $('#shop-note').textContent = canPay()
       ? 'Монеты придут сразу после оплаты. Вопросы по покупкам — команда /paysupport в чате с ботом.'
