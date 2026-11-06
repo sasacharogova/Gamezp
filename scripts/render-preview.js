@@ -15,7 +15,6 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const { pathToFileURL } = require('url');
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -42,8 +41,12 @@ function ffmpegBinary() {
   const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
   await page.route(/telegram\.org/, r => r.abort());
   const q = new URLSearchParams({ render: '1', scale: String(scale), brand, level: String(level - 1), car });
-  await page.goto(pathToFileURL(path.join(__dirname, '..', 'webapp', 'index.html')).href + '?' + q);
+  // Отдаём файлы проекта с одного адреса: иначе логотип «чужой» и кадр с холста не снять
+  const ROOT = path.join(__dirname, '..');
+  await page.route('http://game.local/**', r => r.fulfill({ path: path.join(ROOT, decodeURIComponent(new URL(r.request().url()).pathname)) }));
+  await page.goto('http://game.local/webapp/index.html?' + q);
   await page.waitForFunction(() => window.Game);
+  await page.evaluate(() => window.Game.ready); // логотип для плашки
   await page.evaluate(s => window.Game.advance(s), start);
 
   fs.mkdirSync(path.dirname(out), { recursive: true });

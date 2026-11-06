@@ -32,8 +32,7 @@
     /* шапка как на сайте: логотип ●●● и хромированная полоса */
     .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 56px; background: var(--ground); }
     .topbar .title { flex: 1; font-size: 19px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .dots { display: inline-flex; gap: 4px; margin-right: 10px; vertical-align: 2px; }
-    .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+    .topbar .logo { display: block; height: 15px; width: auto; max-width: 100%; }
     .strip { flex: none; height: 10px; border-top: 1px solid var(--line-strong); border-bottom: 1px solid rgba(0, 0, 0, .5);
       background: var(--chrome), repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 1px, rgba(255, 255, 255, 0) 1px 4px);
       background-blend-mode: multiply; }

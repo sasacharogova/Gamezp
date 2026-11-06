@@ -60,7 +60,7 @@
   function show(name) {
     screen = name;
     for (const k of Object.keys(TITLES)) $('#scr-' + k).classList.toggle('on', k === name);
-    if (name === 'menu') $('#title').innerHTML = '<span class="dots"><i></i><i></i><i></i></span>Звезда провинции';
+    if (name === 'menu') $('#title').innerHTML = '<img class="logo" src="logo.svg" alt="Звезда Провинции">';
     else $('#title').textContent = TITLES[name];
     $('#back').style.display = name === 'menu' ? 'none' : '';
     $('#ui').classList.remove('hidden');

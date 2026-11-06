@@ -311,6 +311,15 @@
   }
 
   // ---------- отрисовка ----------
+  // Логотип для плашки в превью-видео (webapp/logo.svg); Game.ready ждёт его загрузки
+  let logoImg = null;
+  const ready = new Promise(resolve => {
+    if (!(RENDER && BRAND)) { resolve(); return; }
+    const im = new Image();
+    im.onload = () => { logoImg = im; resolve(); };
+    im.onerror = () => resolve();
+    im.src = 'logo.svg';
+  });
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
   let scale = 1, cssScale = 1, viewW = W, viewH = H, offY = 0;
@@ -518,16 +527,21 @@
       const bh = 36, y0 = H - bh;
       ctx.fillStyle = '#191919'; ctx.fillRect(0, y0, W, bh);
       ctx.fillStyle = chromeFill(0, W); ctx.fillRect(0, y0, W, 3);
-      ctx.fillStyle = INK;
-      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(16 + i * 8, y0 + bh / 2 + 1.5, 2.6, 0, Math.PI * 2); ctx.fill(); }
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-      const parts = BRAND.split(' — '), tx = 44;
-      ctx.font = font(14); ctx.fillStyle = INK;
-      ctx.fillText(parts[0].toUpperCase(), tx, y0 + bh / 2 + 2);
+      const parts = BRAND.split(' — ');
+      let tx = 14;
+      if (logoImg) { // фирменный логотип вместо первой части подписи
+        const lh = 12, lw = lh * logoImg.width / logoImg.height;
+        ctx.drawImage(logoImg, tx, y0 + (bh - lh) / 2 + 1.5, lw, lh);
+        tx += lw;
+      } else {
+        ctx.font = font(14); ctx.fillStyle = INK;
+        ctx.fillText(parts[0].toUpperCase(), tx, y0 + bh / 2 + 2);
+        tx += ctx.measureText(parts[0].toUpperCase()).width;
+      }
       if (parts.length > 1) {
-        const w0 = ctx.measureText(parts[0].toUpperCase()).width;
         ctx.font = font(14); ctx.fillStyle = 'rgba(236,234,229,0.6)';
-        ctx.fillText(' — ' + parts.slice(1).join(' — '), tx + w0, y0 + bh / 2 + 2);
+        ctx.fillText(' — ' + parts.slice(1).join(' — '), tx + 2, y0 + bh / 2 + 2);
       }
     }
   }
@@ -583,6 +597,7 @@
     demo(li, car) { begin(li || 0, car || 'eshka', BASE, 'demo', null); },
     play(li, car, stats, hooks) { begin(li, car, stats, 'play', hooks); },
     get mode() { return G.mode; },
+    ready,
     tg: inTelegram ? tg : null,
     haptic,
     verify(li, seed) { // проходим ли уровень базовой машиной (seed — чтобы подобрать другое зерно)
