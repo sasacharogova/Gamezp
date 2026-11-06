@@ -4,47 +4,127 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Звезда провинции</title>
-  <!-- SDK Telegram Mini Apps: даёт Telegram.WebApp (expand, хаптика, цвета шапки). Вне Telegram просто ничего не делает. -->
+  <!-- SDK Telegram Mini Apps: initData для входа, оплата звёздами, хаптика, кнопка «Назад». Вне Telegram ничего не делает. -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root { --bg: #2a48b5; }
+    :root {
+      --bg: #2a48b5; --panel: rgba(9, 12, 34, .62); --card: rgba(255, 255, 255, .09); --card-on: rgba(255, 255, 255, .17);
+      --line: rgba(255, 255, 255, .16); --muted: rgba(255, 255, 255, .72); --accent: #5cff6a; --accent-d: #1f9e2c;
+      --gold: #ffcf3a; --gold-d: #d99a00;
+    }
     * { box-sizing: border-box; }
     html, body {
-      margin: 0; height: 100%; overflow: hidden;
-      background: var(--bg); color: #fff;
+      margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: #fff;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      touch-action: none; user-select: none; -webkit-user-select: none;
-      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-      overscroll-behavior: none;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
     }
-    #c { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
-    #overlay {
-      position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
-      background: rgba(8, 10, 30, .45); transition: opacity .18s ease;
-    }
-    #overlay.hidden { opacity: 0; pointer-events: none; }
-    .card { max-width: 340px; text-align: center; }
-    .logo { display: block; width: 140px; height: 72px; margin: 0 auto 6px; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, .25)); }
-    h1 { margin: 0 0 8px; font-size: clamp(30px, 9vw, 40px); line-height: 1.05; text-shadow: 0 3px 0 rgba(0, 0, 0, .3); }
-    p { margin: 0 0 20px; font-size: 15px; line-height: 1.4; opacity: .92; }
-    button {
-      font: inherit; font-size: 18px; font-weight: 700; color: #151515;
-      background: #5cff6a; border: 0; border-radius: 14px; padding: 14px 40px;
-      box-shadow: 0 5px 0 #1f9e2c; cursor: pointer;
-    }
-    button:active { transform: translateY(3px); box-shadow: 0 2px 0 #1f9e2c; }
+    #c { display: block; position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    .ui { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--panel); }
+    .ui.hidden, .hidden { display: none !important; }
+    .topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; min-height: 52px; }
+    .topbar .title { flex: 1; font-weight: 800; font-size: 18px; }
+    .icon { width: 36px; height: 36px; border-radius: 12px; border: 0; background: var(--card); font-size: 22px; line-height: 1; }
+    .coins { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 7px 12px 7px 9px; background: rgba(0, 0, 0, .35); font-weight: 800; font-size: 15px; }
+    .coins b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #151515; font-size: 14px; }
+    .coin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; vertical-align: -0.14em; flex: none;
+      background: radial-gradient(circle at 38% 35%, #fff6c4 0 12%, var(--gold) 13% 62%, var(--gold-d) 63%); }
+
+    .screen { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 14px calc(18px + env(safe-area-inset-bottom)); }
+    .screen.on { display: block; }
+    .center { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
+    h1 { margin: 0; font-size: clamp(30px, 9vw, 40px); line-height: 1.05; text-shadow: 0 3px 0 rgba(0, 0, 0, .3); }
+    h2 { margin: 18px 2px 8px; font-size: 16px; }
+    .sub { margin: 4px 0 14px; color: var(--muted); font-size: 15px; }
+    .note { margin: 14px auto 0; max-width: 340px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .hero { width: 180px; height: 90px; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, .25)); }
+    .stack { display: grid; gap: 10px; width: min(300px, 100%); }
+
+    .btn { border: 0; border-radius: 14px; padding: 14px 18px; background: var(--card-on); font-weight: 800; font-size: 17px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn.primary { background: var(--accent); color: #151515; box-shadow: 0 5px 0 var(--accent-d); }
+    .btn.primary:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-d); }
+    .btn.small { padding: 9px 12px; font-size: 14px; border-radius: 11px; white-space: nowrap; }
+    .btn.buy { background: var(--gold); color: #151515; }
+    .btn.star { background: #ffb800; color: #151515; }
+    .btn:disabled { opacity: .45; }
+
+    .list { display: grid; gap: 10px; }
+    .card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border-radius: 16px; background: var(--card); border: 2px solid transparent; text-align: left; }
+    .card.active { border-color: var(--accent); background: var(--card-on); }
+    .card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .card b { font-size: 16px; }
+    .card small { color: var(--muted); font-size: 13px; line-height: 1.3; }
+    .level .num { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: #151515; font-weight: 900; font-size: 18px; }
+    .level.locked { opacity: .55; }
+    .level.locked .num { background: var(--card-on); color: #fff; }
+    .level .meta { color: var(--muted); font-size: 13px; }
+    .car .thumb { width: 96px; height: 48px; flex: none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .chips span { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, .3); color: var(--muted); }
+    .pips { letter-spacing: 3px; color: var(--accent); font-size: 12px; }
+    .pack .big { font-size: 20px; font-weight: 900; display: inline-flex; align-items: center; gap: 6px; min-width: 110px; }
+
+    .exit { position: fixed; top: 10px; left: 12px; width: 34px; height: 34px; border-radius: 11px; border: 0; background: rgba(0, 0, 0, .35); color: #fff; font-size: 18px; z-index: 5; }
+    .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); max-width: calc(100% - 32px);
+      background: rgba(10, 10, 20, .92); padding: 11px 16px; border-radius: 14px; font-size: 14px; text-align: center; opacity: 0; pointer-events: none; transition: .2s; z-index: 10; }
+    .toast.on { opacity: 1; transform: translate(-50%, 0); }
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div id="overlay">
-    <div class="card">
-      <canvas id="logo" class="logo"></canvas>
-      <h1 id="ov-title">Звезда провинции</h1>
-      <p id="ov-text"></p>
-      <button id="ov-btn" type="button">Играть</button>
-    </div>
+
+  <div id="ui" class="ui">
+    <header class="topbar">
+      <button id="back" class="icon" aria-label="Назад">‹</button>
+      <div id="title" class="title"></div>
+      <button id="coins" class="coins" aria-label="Монеты"><i class="coin"></i><span id="coin-count">0</span><b>+</b></button>
+    </header>
+
+    <section id="scr-menu" class="screen">
+      <div class="center">
+        <canvas id="hero" class="hero"></canvas>
+        <h1>Звезда провинции</h1>
+        <p id="menu-car" class="sub"></p>
+        <div class="stack">
+          <button class="btn primary" data-go="levels">Играть</button>
+          <button class="btn" data-go="garage">Гараж</button>
+          <button class="btn" data-go="shop">Монеты за ⭐</button>
+        </div>
+        <p id="mode-note" class="note"></p>
+      </div>
+    </section>
+
+    <section id="scr-levels" class="screen"><div id="levels" class="list"></div></section>
+
+    <section id="scr-garage" class="screen">
+      <div id="cars" class="list"></div>
+      <h2 id="upg-title"></h2>
+      <div id="upgrades" class="list"></div>
+    </section>
+
+    <section id="scr-shop" class="screen">
+      <div id="packs" class="list"></div>
+      <p id="shop-note" class="note"></p>
+    </section>
+
+    <section id="scr-result" class="screen">
+      <div class="center">
+        <h1 id="res-title"></h1>
+        <p id="res-text" class="sub"></p>
+        <div id="res-actions" class="stack"></div>
+      </div>
+    </section>
   </div>
+
+  <button id="exit" class="exit hidden" aria-label="Выйти из заезда">✕</button>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="catalog.js"></script>
+  <script src="levels.js"></script>
+  <script src="cars.js"></script>
   <script src="game.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

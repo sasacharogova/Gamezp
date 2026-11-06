@@ -65,7 +65,8 @@ module.exports = async (req, res) => {
         allowed_updates: ['message'],
         drop_pending_updates: true,
       });
-      await tg(token, 'setMyCommands', { commands: COMMANDS });
+      // на Vercel нет хранилища, поэтому покупок нет — показываем только /start
+      await tg(token, 'setMyCommands', { commands: COMMANDS.filter(c => c.command === 'start') });
       await tg(token, 'setChatMenuButton', { menu_button: { type: 'web_app', text: MENU_TEXT, web_app: { url: webapp } } });
       return text(res, 200,
         `✅ Готово! Бот @${me.username} подключён.\n\n` +

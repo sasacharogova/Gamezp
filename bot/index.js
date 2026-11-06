@@ -6,10 +6,11 @@
  * На хостинге, который выдаёт порт (переменная PORT, например Railway), бот заодно раздаёт
  * игру по https: /webapp/ — игра, /assets/ — превью, /widget/ — HTML-виджет. Отдельный хостинг не нужен.
  *
- * Что делает — ровно то, что на видео:
- *   1. на /start присылает «гифку» (assets/preview.mp4 через sendAnimation) с подписью;
- *   2. под ней — inline-кнопка типа web_app, открывающая игру (Mini App);
- *   3. ставит кнопку меню слева от поля ввода (setChatMenuButton), она тоже открывает игру.
+ * Что делает:
+ *   1. на /start присылает «гифку» (assets/preview.mp4 через sendAnimation) и кнопку игры (Mini App);
+ *   2. ставит кнопку меню слева от поля ввода (setChatMenuButton), она тоже открывает игру;
+ *   3. хранит прогресс игроков (монеты, гараж, уровни) и отвечает игре по /api/... (bot/game-api.js);
+ *   4. продаёт монеты за Telegram Stars: счёт, pre_checkout_query, successful_payment, /paysupport, /terms.
  *
  * Настройки — переменные окружения или файл .env в корне репозитория:
  *   BOT_TOKEN    — токен от @BotFather (обязательно)
@@ -17,6 +18,8 @@
  *   BUTTON_TEXT  — текст кнопки под сообщением (по умолчанию «🎮 Играть»)
  *   MENU_TEXT    — текст кнопки меню (по умолчанию «Играть»)
  *   CAPTION      — подпись под гифкой (HTML); тексты по умолчанию — в bot/texts.js
+ *   SUPPORT_CONTACT — куда писать по покупкам (например @username), показывается в /paysupport
+ *   DATA_DIR     — папка для базы игроков; на Railway подставляется путь подключённого Volume
  */
 'use strict';
 const fs = require('fs');
@@ -31,8 +34,9 @@ const PUBLIC_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN;
 const WEBAPP_URL = process.env.WEBAPP_URL || (PUBLIC_DOMAIN ? `https://${PUBLIC_DOMAIN}/webapp/` : '');
 const API = (process.env.TELEGRAM_API || 'https://api.telegram.org').replace(/\/$/, '');
 const PREVIEW = path.resolve(ROOT, process.env.PREVIEW_PATH || 'assets/preview.mp4');
-const { CAPTION, MENU_TEXT, COMMANDS, START_RE, keyboard } = require('./texts');
+const { CAPTION, MENU_TEXT, COMMANDS, START_RE, PAYSUPPORT, TERMS, keyboard } = require('./texts');
 const CACHE = path.join(__dirname, '.file-cache.json');
+const DATA_DIR = process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(ROOT, 'data');
 
 if (!TOKEN) fail('Не задан BOT_TOKEN (возьмите у @BotFather; на Railway — вкладка Variables, локально — файл .env)');
 if (!WEBAPP_URL) {
@@ -46,6 +50,10 @@ if (PUBLIC_DOMAIN && process.env.WEBAPP_URL && !process.env.WEBAPP_URL.includes(
     'Если игра не открывается, удалите переменную WEBAPP_URL в Railway (Variables) — адрес подставится сам.');
 }
 if (!fs.existsSync(PREVIEW)) fail('Нет файла превью: ' + PREVIEW + ' — запустите npm run render');
+if (PORT && !process.env.DATA_DIR && !process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+  console.warn('⚠️  Прогресс и покупки игроков хранятся в ' + DATA_DIR + ' и пропадут при следующем деплое. ' +
+    'На Railway подключите Volume к сервису (правый клик по сервису → Attach Volume, путь /data).');
+}
 
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
 
@@ -105,18 +113,57 @@ async function sendPreview(chat, botId) {
   return msg;
 }
 
+const CATALOG = require('../webapp/catalog.js');
+const { openStore } = require('./store');
+const { createGameApi } = require('./game-api');
+const { validateInitData } = require('./auth');
+const store = openStore(DATA_DIR);
+const game = createGameApi({ store, tg: api });
+
+async function send(chatId, text) {
+  try { await api('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML' }); }
+  catch (e) { console.error('sendMessage:', e.message); }
+}
+
+async function onUpdate(u, me) {
+  if (u.pre_checkout_query) { // Telegram спрашивает перед списанием звёзд
+    const q = u.pre_checkout_query, error = game.checkPreCheckout(q);
+    await api('answerPreCheckoutQuery', error
+      ? { pre_checkout_query_id: q.id, ok: false, error_message: error }
+      : { pre_checkout_query_id: q.id, ok: true });
+    return;
+  }
+  const m = u.message;
+  if (!m) return;
+  if (m.successful_payment) {
+    const r = game.applyPayment(m.successful_payment, m.from.id);
+    console.log(`⭐ Оплата ${m.successful_payment.total_amount} XTR от ${m.from.id}: ${r.status}${r.pack ? ' ' + r.pack.id : ''}`);
+    if (r.status === 'ok') await send(m.chat.id, `✅ Начислено ${r.pack.coins.toLocaleString('ru-RU')} монет. Возвращайся в игру!`);
+    else if (r.status === 'unknown') await send(m.chat.id, 'Оплата получена, но заказ не распознан. Напиши /paysupport — разберёмся.');
+    return; // повтор того же платежа — молча
+  }
+  if (typeof m.text !== 'string') return;
+  if (START_RE.test(m.text)) await sendPreview(m.chat, me.id);
+  else if (/^\/paysupport(@\w+)?(\s|$)/.test(m.text)) await send(m.chat.id, PAYSUPPORT);
+  else if (/^\/terms(@\w+)?(\s|$)/.test(m.text)) await send(m.chat.id, TERMS);
+  else if (!m.text.startsWith('/')) { // обычные сообщения (например, вопросы по покупкам) видны в логах
+    console.log(`📩 Сообщение от ${m.from.id}${m.from.username ? ' @' + m.from.username : ''}: ${m.text.slice(0, 500)}`);
+  }
+}
+
 async function main() {
   const me = await api('getMe');
   await api('deleteWebhook', {}); // работаем через long polling
   await api('setMyCommands', { commands: COMMANDS });
   await api('setChatMenuButton', { menu_button: { type: 'web_app', text: MENU_TEXT, web_app: { url: WEBAPP_URL } } });
   console.log(`✅ @${me.username} запущен. Mini App: ${WEBAPP_URL}`);
+  if (!process.env.SUPPORT_CONTACT) console.warn('⚠️  Не задан SUPPORT_CONTACT — укажите, куда писать по покупкам (например @ваш_ник); он показывается в /paysupport');
 
   let offset = 0;
   for (;;) {
     let updates;
     try {
-      updates = await api('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
+      updates = await api('getUpdates', { offset, timeout: 30, allowed_updates: ['message', 'pre_checkout_query'] });
     } catch (e) {
       console.error('getUpdates:', e.message);
       await sleep(e.retryAfter ? e.retryAfter * 1000 : 3000);
@@ -124,17 +171,48 @@ async function main() {
     }
     for (const u of updates) {
       offset = u.update_id + 1;
-      const m = u.message;
-      if (!m || typeof m.text !== 'string') continue;
-      if (START_RE.test(m.text)) {
-        try { await sendPreview(m.chat, me.id); }
-        catch (e) { console.error('sendAnimation:', e.message); }
-      }
+      try { await onUpdate(u, me); }
+      catch (e) { console.error('Обработка обновления:', e.message); }
     }
   }
 }
 
-// Раздача игры, превью и виджета, если хостинг выдал порт (Railway, Render и т.п.)
+// Ответ JSON
+function json(res, code, obj) {
+  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(JSON.stringify(obj));
+}
+
+function readBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on('data', c => { size += c.length; if (size > limit) { reject(new Error('too big')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+// /api/<метод>: игрок определяется по подписанному Telegram initData из заголовка Authorization
+async function handleApi(req, res, name) {
+  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'Method not allowed' });
+  const handler = Object.prototype.hasOwnProperty.call(game.handlers, name) && game.handlers[name];
+  if (!handler) return json(res, 404, { ok: false, error: 'Нет такого метода' });
+  const auth = String(req.headers.authorization || '');
+  const user = validateInitData(auth.startsWith('tma ') ? auth.slice(4) : '', TOKEN);
+  if (!user) return json(res, 401, { ok: false, error: 'Откройте игру через Telegram' });
+  let body = {};
+  try { const raw = await readBody(req, 16 * 1024); body = raw ? JSON.parse(raw) : {}; }
+  catch (e) { return json(res, 400, { ok: false, error: 'Некорректный запрос' }); }
+  try {
+    json(res, 200, Object.assign({ ok: true }, await handler(String(user.id), body || {})));
+  } catch (e) {
+    if (e instanceof CATALOG.GameError) return json(res, 400, { ok: false, error: e.message, code: e.code });
+    console.error('API ' + name + ':', e);
+    json(res, 500, { ok: false, error: 'Ошибка сервера, попробуйте ещё раз' });
+  }
+}
+
+// Раздача игры, превью и виджета + API игры, если хостинг выдал порт (Railway, Render и т.п.)
 function serveStatic() {
   const http = require('http');
   const TYPES = {
@@ -147,6 +225,7 @@ function serveStatic() {
     try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
     catch (e) { res.writeHead(400); return res.end('Bad request'); }
     if (pathname === '/') { res.writeHead(302, { location: '/webapp/' }); return res.end(); }
+    if (pathname.startsWith('/api/')) { handleApi(req, res, pathname.slice(5)); return; }
     const rel = path.normalize(pathname + (pathname.endsWith('/') ? 'index.html' : '')).replace(/^[/\\]+/, '');
     if (!PUBLIC.includes(rel.split(/[/\\]/)[0])) { res.writeHead(404); return res.end('Not found'); }
     fs.readFile(path.join(ROOT, rel), (err, data) => {

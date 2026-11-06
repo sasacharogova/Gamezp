@@ -2,3 +2,4 @@ node_modules/
 .env
 bot/.file-cache.json
 .DS_Store
+data/

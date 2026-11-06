@@ -54,7 +54,9 @@ const CSS = [
 ].join('');
 
 (async () => {
-  const src = fs.readFileSync(path.join(ROOT, 'webapp', 'game.js'), 'utf8');
+  // Виджету нужны каталог, генератор уровней, машины и движок; меню и магазин (app.js) — нет
+  const src = ['catalog.js', 'levels.js', 'cars.js', 'game.js']
+    .map(f => fs.readFileSync(path.join(ROOT, 'webapp', f), 'utf8')).join('\n;\n');
   const js = (await minify(src)).replace(/<\/script/gi, '<\\/script');
 
   const html = '<!doctype html><html lang="ru"><head><meta charset="utf-8">' +

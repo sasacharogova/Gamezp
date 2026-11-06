@@ -7,7 +7,8 @@
  *   npm run render -- --seconds 8 --brand "Моя игра — играй прямо в Telegram"
  *
  * Параметры: --seconds 7  --fps 30  --scale 2 (2 → 1280×800)  --start 0.6 (сколько секунд пропустить)
- *            --seed 7  --brand "текст плашки" (--brand "" — без плашки)  --out assets/preview.mp4
+ *            --level 1 (номер уровня)  --car eshka (kaban, glazastyi, roadster, gelik, dlinnyi)
+ *            --brand "текст плашки" (--brand "" — без плашки)  --out assets/preview.mp4
  * Нужны playwright (+ `npx playwright install chromium`) и ffmpeg (ffmpeg-static, системный или FFMPEG_PATH).
  */
 'use strict';
@@ -24,7 +25,8 @@ const seconds = Number(arg('seconds', 7));
 const fps = Number(arg('fps', 30));
 const scale = Number(arg('scale', 2));
 const start = Number(arg('start', 0.6));
-const seed = arg('seed', '');
+const level = Math.max(1, Number(arg('level', 1)) | 0);
+const car = arg('car', 'eshka');
 const brand = arg('brand', 'Звезда провинции — мини-игра прямо в Telegram');
 const out = path.resolve(arg('out', path.join(__dirname, '..', 'assets', 'preview.mp4')));
 
@@ -39,11 +41,10 @@ function ffmpegBinary() {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
   await page.route(/telegram\.org/, r => r.abort());
-  const q = new URLSearchParams({ render: '1', scale: String(scale), brand });
-  if (seed) q.set('seed', seed);
+  const q = new URLSearchParams({ render: '1', scale: String(scale), brand, level: String(level - 1), car });
   await page.goto(pathToFileURL(path.join(__dirname, '..', 'webapp', 'index.html')).href + '?' + q);
-  await page.waitForFunction(() => window.__game);
-  await page.evaluate(s => window.__game.advance(s), start);
+  await page.waitForFunction(() => window.Game);
+  await page.evaluate(s => window.Game.advance(s), start);
 
   fs.mkdirSync(path.dirname(out), { recursive: true });
   const ff = spawn(ffmpegBinary(), [
@@ -61,15 +62,15 @@ function ffmpegBinary() {
 
   const total = Math.round(seconds * fps);
   for (let i = 0; i < total; i++) {
-    const b64 = await page.evaluate(dt => { window.__game.advance(dt); return window.__game.frame(); }, 1 / fps);
+    const b64 = await page.evaluate(dt => { window.Game.advance(dt); return window.Game.frame(); }, 1 / fps);
     if (!ff.stdin.write(Buffer.from(b64, 'base64'))) await new Promise(r => ff.stdin.once('drain', r));
   }
   ff.stdin.end();
   await finished;
 
-  const stats = await page.evaluate(() => window.__game.stats());
+  const stats = await page.evaluate(() => window.Game.stats());
   await browser.close();
-  if (stats.deaths) console.warn('⚠️  автопилот разбился в кадре — попробуйте другой --seed');
+  if (stats.deaths) console.warn('⚠️  автопилот разбился в кадре — проверьте уровень через npm run check');
   const kb = (fs.statSync(out).size / 1024).toFixed(0);
-  console.log(`Готово: ${path.relative(process.cwd(), out)} — ${640 * scale}×${400 * scale}, ${total} кадров, ${kb} КБ (seed ${stats.seed})`);
+  console.log(`Готово: ${path.relative(process.cwd(), out)} — ${640 * scale}×${400 * scale}, ${total} кадров, ${kb} КБ (уровень ${stats.level + 1}, машина ${stats.car})`);
 })().catch(e => { console.error('❌', e.message); process.exit(1); });
