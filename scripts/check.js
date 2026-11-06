@@ -43,14 +43,15 @@ const PAGE = pathToFileURL(path.join(__dirname, '..', 'webapp', 'index.html')).h
 
   // 3. Меню (без сервера прогресс хранится в localStorage)
   const app = await open('', { width: 390, height: 760 });
-  await app.evaluate(() => localStorage.setItem('zvezda.profile.v1', JSON.stringify({ coins: 5000 })));
+  await app.evaluate(() => localStorage.setItem('zvezda.profile.v1', JSON.stringify({ coins: 5000, v: 2 })));
   await app.reload();
   await app.waitForFunction(() => window.App);
   await app.click('[data-go="garage"]');
   await app.click('[data-buy="kaban"]');
   await app.click('[data-upg="engine"]');
   const prof = await app.evaluate(() => App.profile);
-  if (prof.coins !== 2500 || prof.car !== 'kaban' || prof.cars.kaban.engine !== 1) throw new Error('покупки в гараже работают неправильно: ' + JSON.stringify(prof));
+  const expected = await app.evaluate(() => 5000 - CATALOG.car('kaban').price - CATALOG.upgrade('engine').prices[0]);
+  if (prof.coins !== expected || prof.car !== 'kaban' || prof.cars.kaban.engine !== 1) throw new Error('покупки в гараже работают неправильно: ' + JSON.stringify(prof));
   await app.click('#back');
   await app.click('[data-go="levels"]');
   await app.click('[data-level="2"]');

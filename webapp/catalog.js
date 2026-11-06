@@ -4,6 +4,10 @@
  * и награды по этим же правилам, поэтому подделать цену или монеты из браузера нельзя.
  *
  * Хотите поменять баланс — меняйте числа здесь, больше нигде.
+ *
+ * Курс: 1 монета = 1 звезда Telegram. Пачки монет продаются 1:1, а цены машин и улучшений
+ * указаны в монетах — то есть фактически в звёздах. Игра даёт монеты скупо: редкие монеты
+ * на трассе (1 штука = 1 монета) и небольшая награда за первое прохождение уровня.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -15,41 +19,45 @@
   // jump — множитель прыжка, armor — сколько ударов машина переживёт за попытку, coin — бонус к монетам.
   const CARS = [
     { id: 'eshka', name: 'Ешка', body: 'седан', year: 1993, price: 0, jump: 1, armor: 0, coin: 0 },
-    { id: 'kaban', name: 'Кабан', body: 'седан', year: 1995, price: 2000, jump: 1, armor: 1, coin: 0.1 },
-    { id: 'glazastyi', name: 'Глазастый', body: 'седан', year: 1999, price: 4000, jump: 1.04, armor: 1, coin: 0.15 },
-    { id: 'roadster', name: 'Родстер', body: 'кабриолет', year: 1996, price: 7000, jump: 1.1, armor: 0, coin: 0.3 },
-    { id: 'gelik', name: 'Гелик', body: 'внедорожник', year: 2002, price: 12000, jump: 1.04, armor: 2, coin: 0.25 },
-    { id: 'dlinnyi', name: 'Длинный', body: 'седан', year: 2005, price: 20000, jump: 1.06, armor: 2, coin: 0.5 },
+    { id: 'kaban', name: 'Кабан', body: 'седан', year: 1995, price: 60, jump: 1, armor: 1, coin: 0.1 },
+    { id: 'glazastyi', name: 'Глазастый', body: 'седан', year: 1999, price: 120, jump: 1.04, armor: 1, coin: 0.15 },
+    { id: 'roadster', name: 'Родстер', body: 'кабриолет', year: 1996, price: 200, jump: 1.1, armor: 0, coin: 0.3 },
+    { id: 'gelik', name: 'Гелик', body: 'внедорожник', year: 2002, price: 350, jump: 1.04, armor: 2, coin: 0.25 },
+    { id: 'dlinnyi', name: 'Длинный', body: 'седан', year: 2005, price: 600, jump: 1.06, armor: 2, coin: 0.5 },
   ];
 
   // Улучшения покупаются для каждой машины отдельно, по 3 ступени.
   const UPGRADES = [
-    { id: 'suspension', name: 'Подвеска', desc: 'прыжок выше и дальше', prices: [400, 1200, 3000], step: 0.04 },
-    { id: 'body', name: 'Кузов', desc: '+1 удар, который машина переживёт', prices: [600, 1800, 4500], step: 1 },
-    { id: 'engine', name: 'Двигатель', desc: '+25% монет за заезд', prices: [500, 1500, 3500], step: 0.25 },
+    { id: 'suspension', name: 'Подвеска', desc: 'прыжок выше и дальше', prices: [15, 40, 90], step: 0.04 },
+    { id: 'body', name: 'Кузов', desc: '+1 удар, который машина переживёт', prices: [20, 50, 120], step: 1 },
+    { id: 'engine', name: 'Двигатель', desc: '+25% монет с трассы', prices: [15, 40, 100], step: 0.25 },
   ];
 
   // Уровни: длина трассы (px), скорость (px/с), сложность препятствий от начала к концу (0…1),
-  // промежутки между препятствиями, зерно генерации, цвета фона, награда за первое прохождение.
+  // промежутки между препятствиями, зерно генерации, цвета фона, сколько монет лежит на трассе,
+  // награда за первое прохождение.
   // Проходимость каждого уровня базовой машиной проверяет npm run check.
   const LEVELS = [
-    { name: 'Двор', len: 6000, speed: 300, d: [0, 0.15], gap: [240, 380], seed: 11, palette: ['#2e2f31', '#3a3b3e'], reward: 300 },
-    { name: 'Рынок', len: 8000, speed: 320, d: [0.05, 0.35], gap: [225, 350], seed: 21, palette: ['#3b332c', '#4a4037'], reward: 600 },
-    { name: 'Трасса', len: 10000, speed: 340, d: [0.15, 0.55], gap: [215, 330], seed: 31, palette: ['#2b3337', '#36424a'], reward: 1000 },
-    { name: 'Ночной город', len: 11000, speed: 350, d: [0.3, 0.8], gap: [210, 310], seed: 41, palette: ['#151515', '#1f1f22'], reward: 1600 },
-    { name: 'Рублёвка', len: 12000, speed: 360, d: [0.45, 1], gap: [205, 300], seed: 51, palette: ['#433b31', '#54493b'], reward: 2500 },
+    { name: 'Двор', len: 6000, speed: 300, d: [0, 0.15], gap: [240, 380], seed: 11, palette: ['#2e2f31', '#3a3b3e'], coins: 5, reward: 5 },
+    { name: 'Рынок', len: 8000, speed: 320, d: [0.05, 0.35], gap: [225, 350], seed: 21, palette: ['#3b332c', '#4a4037'], coins: 7, reward: 10 },
+    { name: 'Трасса', len: 10000, speed: 340, d: [0.15, 0.55], gap: [215, 330], seed: 31, palette: ['#2b3337', '#36424a'], coins: 9, reward: 15 },
+    { name: 'Ночной город', len: 11000, speed: 350, d: [0.3, 0.8], gap: [210, 310], seed: 41, palette: ['#151515', '#1f1f22'], coins: 11, reward: 25 },
+    { name: 'Рублёвка', len: 12000, speed: 360, d: [0.45, 1], gap: [205, 300], seed: 51, palette: ['#433b31', '#54493b'], coins: 14, reward: 40 },
   ];
 
-  // Пакеты монет за Telegram Stars (XTR).
+  // Пакеты монет за Telegram Stars (XTR): 1 монета = 1 звезда.
   const PACKS = [
-    { id: 'coins_s', title: 'Пачка монет', coins: 3000, stars: 50 },
-    { id: 'coins_m', title: 'Мешок монет', coins: 10000, stars: 150 },
-    { id: 'coins_l', title: 'Сундук монет', coins: 30000, stars: 400 },
+    { id: 'coins_xs', title: 'Горсть монет', coins: 25, stars: 25 },
+    { id: 'coins_s', title: 'Пачка монет', coins: 50, stars: 50 },
+    { id: 'coins_m', title: 'Мешок монет', coins: 150, stars: 150 },
+    { id: 'coins_l', title: 'Сундук монет', coins: 400, stars: 400 },
   ];
 
-  const COIN_VALUE = 10;        // монет за одну монетку на трассе
-  const REPEAT_REWARD = 0.1;    // доля награды за повторное прохождение уровня
+  const COIN_VALUE = 1;         // монет за одну монету на трассе
+  const REPEAT_REWARD = 0.1;    // доля награды за повторное прохождение уровня (не меньше 1 монеты)
   const START_COINS = 0;
+  const PROFILE_VERSION = 2;    // 2 — курс «1 монета = 1 звезда»
+  const OLD_RATE = 60;          // старый курс: 3000 монет стоили 50 звёзд
 
   const ERRORS = {
     no_money: 'Не хватает монет',
@@ -73,6 +81,8 @@
   function normalize(p) {
     p = p && typeof p === 'object' ? p : {};
     if (!Number.isFinite(p.coins)) p.coins = START_COINS;
+    else if (!(p.v >= PROFILE_VERSION)) p.coins = Math.round(p.coins / OLD_RATE); // перевод старых балансов на новый курс
+    p.v = PROFILE_VERSION;
     if (!p.cars || typeof p.cars !== 'object') p.cars = {};
     for (const c of CARS) if (c.price === 0 && !p.cars[c.id]) p.cars[c.id] = freshUpgrades();
     for (const id of Object.keys(p.cars)) {
@@ -144,7 +154,7 @@
     let bonus = 0, first = false;
     if (r.finished) {
       first = !lv.done;
-      bonus = first ? LEVELS[li].reward : Math.round(LEVELS[li].reward * REPEAT_REWARD);
+      bonus = first ? LEVELS[li].reward : Math.max(1, Math.round(LEVELS[li].reward * REPEAT_REWARD));
       lv.done = true;
       lv.best = 1;
     } else {

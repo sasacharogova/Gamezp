@@ -54,7 +54,7 @@ function createGameApi({ store, tg }) {
       const reachable = Math.min(1, elapsed / info.seconds + 0.05);
       let finished = !!b.finished && elapsed >= info.seconds * 0.85;
       const progress = finished ? 1 : Math.min(reachable, Math.max(0, +b.progress || 0));
-      const pickups = Math.max(0, Math.min(b.pickups | 0, Math.ceil(info.pickups * reachable) + 3, info.pickups));
+      const pickups = Math.max(0, Math.min(b.pickups | 0, Math.ceil(info.pickups * reachable) + 1, info.pickups));
       const reward = C.applyRun(user(uid), { level: run.li, car: run.car, pickups, finished, progress });
       store.save();
       return { profile: user(uid), reward };

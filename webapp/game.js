@@ -452,7 +452,11 @@
     // монетки
     const pk = lv.pickups, spin = p.f * DT * 4;
     for (let i = firstIdx(pk, camX - 20); i < pk.length && pk[i].x < camX + viewW + 20; i++) {
-      if (!G.taken[i]) coinIcon(pk[i].x, pk[i].y, 8, 0.3 + 0.7 * Math.abs(Math.cos(spin + pk[i].x * 0.02)));
+      if (G.taken[i]) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(spin * 1.5 + pk[i].x); // монеты редкие — пусть слегка светятся
+      ctx.fillStyle = 'rgba(231,193,90,' + (0.12 + 0.12 * pulse).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(pk[i].x, pk[i].y, 15 + 2 * pulse, 0, Math.PI * 2); ctx.fill();
+      coinIcon(pk[i].x, pk[i].y, 10, 0.3 + 0.7 * Math.abs(Math.cos(spin + pk[i].x * 0.02)));
     }
 
     // частицы

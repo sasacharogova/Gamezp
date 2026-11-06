@@ -3,7 +3,8 @@
  * Сервер по нему знает, сколько монеток лежит на уровне, и не даст начислить больше.
  *
  * Препятствия: столбы ('p', стоят на земле, на них можно запрыгнуть) и шипы ('s').
- * Монетки: ряды по три в промежутках и по одной над шипами.
+ * Монеты редкие: кандидаты — над препятствиями и посреди промежутков, из них на уровень
+ * равномерно выбирается CATALOG.LEVELS[i].coins штук (1 монета на трассе = 1 монета в кошельке).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./catalog.js'));
@@ -54,13 +55,16 @@
       const from = rnd() < 0.5 ? Math.floor(avail.length / 2) : 0;
       const w = avail[from + Math.floor(rnd() * (avail.length - from))].fn(x, P, S, C);
       const gap = Math.round(L.gap[0] + rnd() * (L.gap[1] - L.gap[0]));
-      const mid = x + w + gap / 2;
-      for (let k = -1; k <= 1; k++) C(mid + k * 28, GROUND - 18);
+      C(x + w + gap / 2, GROUND - 18); // кандидат посреди промежутка
       x += w + gap;
     }
     obs.sort((a, b) => a.x - b.x);
     pickups.sort((a, b) => a.x - b.x);
-    return { index: i, name: L.name, len: L.len, speed: L.speed, palette: L.palette, obs, pickups };
+    // равномерно оставляем столько монет, сколько задано для уровня
+    const n = Math.min(L.coins || pickups.length, pickups.length);
+    const chosen = [];
+    for (let k = 0; k < n; k++) chosen.push(pickups[Math.floor((k + 0.5) * pickups.length / n)]);
+    return { index: i, name: L.name, len: L.len, speed: L.speed, palette: L.palette, obs, pickups: chosen };
   }
 
   return { GROUND, PATTERNS, build, mulberry32 };

@@ -14,6 +14,8 @@
   const fmt = n => Math.round(n).toLocaleString('ru-RU');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const COIN = '<i class="coin"></i>';
+  const plural = (n, one, few, many) => { const a = Math.abs(n) % 100, b = a % 10; return a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many; };
+  const coins = n => fmt(n) + ' ' + plural(Math.round(n), 'монета', 'монеты', 'монет');
   const tgv = v => { try { return !!tg && tg.isVersionAtLeast(v); } catch (e) { return false; } };
 
   // ---------- профиль ----------
@@ -124,8 +126,8 @@
       const st = profile.levels[i], open = C.levelUnlocked(profile, i);
       const tag = !open ? '<span class="tag ghost">Закрыт</span>' : st.done ? '<span class="tag">Пройден</span>' : '';
       const status = !open ? 'Сначала пройдите уровень ' + i
-        : st.done ? 'За повтор +' + fmt(L.reward * C.REPEAT_REWARD) + ' монет'
-          : (st.best > 0 ? 'Лучший результат ' + Math.floor(st.best * 100) + '% · ' : '') + 'за прохождение +' + fmt(L.reward);
+        : st.done ? 'За повтор +' + coins(Math.max(1, Math.round(L.reward * C.REPEAT_REWARD))) + ' · на трассе ' + L.coins
+          : (st.best > 0 ? 'Лучший результат ' + Math.floor(st.best * 100) + '% · ' : '') + 'за прохождение +' + coins(L.reward) + ' · на трассе ' + L.coins;
       return `<button class="card level${open ? '' : ' locked'}${st.done ? ' done' : ''}" data-level="${i}">
         <span class="num">${i + 1}</span>
         <span class="info">${tag}<b>${L.name}</b><small>${status}</small></span>
@@ -178,7 +180,7 @@
   function renderShop() {
     $('#packs').innerHTML = C.PACKS.map(p => `<div class="card pack">
       <span class="big">${COIN}${fmt(p.coins)}</span>
-      <span class="info"><b>${p.title}</b><small>оплата Telegram Stars</small></span>
+      <span class="info"><b>${p.title}</b><small>${coins(p.coins)} за ${p.stars} ⭐</small></span>
       <button class="btn small buy" data-pack="${p.id}"${canPay() ? '' : ' disabled'}>${p.stars} ⭐</button>
     </div>`).join('');
     $('#shop-note').textContent = canPay()
@@ -238,7 +240,7 @@
     $('#res-eyebrow').textContent = `Уровень ${li + 1} · ${C.LEVELS[li].name}`;
     $('#res-title').innerHTML = last ? 'Ты — звезда<br><span class="metal">провинции.</span>' : 'Доехал.<br><span class="metal">Целым.</span>';
     $('#res-text').innerHTML = reward
-      ? `+${fmt(reward.total)} ${COIN} — ${fmt(reward.coins)} с трассы` +
+      ? `+${coins(reward.total)}: ${fmt(reward.coins)} с трассы` +
         (reward.bonus ? ` и ${fmt(reward.bonus)} за ${reward.first ? 'первое прохождение' : 'повтор'}.` : '.')
       : 'Заезд не сохранился — проверьте связь.';
     $('#res-actions').innerHTML =
