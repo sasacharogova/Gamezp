@@ -104,7 +104,20 @@ function createGameApi({ store, tg }) {
     return { status: 'ok', pack };
   }
 
-  return { handlers, checkPreCheckout, applyPayment };
+  // Возврат звёзд (для владельца): Telegram вернёт звёзды игроку, а мы спишем начисленные монеты
+  async function refund(charge) {
+    const pay = store.db.payments[charge];
+    if (!pay) return { ok: false, error: 'Платёж не найден' };
+    if (pay.refunded) return { ok: false, error: 'Этот платёж уже возвращён' };
+    await tg('refundStarPayment', { user_id: Number(pay.uid), telegram_payment_charge_id: charge });
+    const p = user(pay.uid);
+    p.coins = Math.max(0, p.coins - (pay.coins || 0));
+    pay.refunded = Date.now();
+    store.save();
+    return { ok: true, pay };
+  }
+
+  return { handlers, checkPreCheckout, applyPayment, refund };
 }
 
 module.exports = { createGameApi };

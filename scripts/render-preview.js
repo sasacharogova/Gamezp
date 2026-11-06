@@ -27,7 +27,7 @@ const scale = Number(arg('scale', 2));
 const start = Number(arg('start', 0.6));
 const level = Math.max(1, Number(arg('level', 1)) | 0);
 const car = arg('car', 'eshka');
-const brand = arg('brand', 'Звезда провинции — мини-игра прямо в Telegram');
+const brand = arg('brand', 'Звезда Провинции — гонка на старых звёздах прямо в Telegram');
 const out = path.resolve(arg('out', path.join(__dirname, '..', 'assets', 'preview.mp4')));
 
 function ffmpegBinary() {

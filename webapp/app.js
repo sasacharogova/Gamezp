@@ -60,8 +60,9 @@
   function show(name) {
     screen = name;
     for (const k of Object.keys(TITLES)) $('#scr-' + k).classList.toggle('on', k === name);
-    $('#title').textContent = TITLES[name];
-    $('#back').style.visibility = name === 'menu' ? 'hidden' : 'visible';
+    if (name === 'menu') $('#title').innerHTML = '<span class="dots"><i></i><i></i><i></i></span>Звезда провинции';
+    else $('#title').textContent = TITLES[name];
+    $('#back').style.display = name === 'menu' ? 'none' : '';
     $('#ui').classList.remove('hidden');
     $('#exit').classList.add('hidden');
     backButton(name !== 'menu');
@@ -95,7 +96,7 @@
     const w = canvas.clientWidth || 96, h = canvas.clientHeight || 48;
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
     const c = canvas.getContext('2d');
-    const s = (w / 96) * (scale || 1);
+    const s = Math.min(w / 96, (h - 3) / 46) * (scale || 1);
     c.setTransform(s * dpr, 0, 0, s * dpr, (w / 2) * dpr, (h - 3) * dpr);
     self.drawCar(c, id, 0, 0, 0, 0.4, 0, 0);
   }
@@ -111,7 +112,7 @@
 
   function renderMenu() {
     const c = C.car(profile.car);
-    $('#menu-car').textContent = `${c.name} · ${c.body}, ${c.year}`;
+    $('#menu-car').textContent = `За рулём: ${c.name} · ${c.body}, ${c.year}`;
     drawThumb($('#hero'), profile.car, 0.95);
     $('#mode-note').textContent = online ? ''
       : tg ? 'Нет связи с сервером: прогресс сохраняется только на этом устройстве, покупки за звёзды недоступны.'
@@ -121,24 +122,25 @@
   function renderLevels() {
     $('#levels').innerHTML = C.LEVELS.map((L, i) => {
       const st = profile.levels[i], open = C.levelUnlocked(profile, i);
-      const status = !open ? '🔒 Сначала пройдите уровень ' + i
-        : st.done ? 'Пройден ✓ · за повтор +' + fmt(L.reward * C.REPEAT_REWARD)
+      const tag = !open ? '<span class="tag ghost">Закрыт</span>' : st.done ? '<span class="tag">Пройден</span>' : '';
+      const status = !open ? 'Сначала пройдите уровень ' + i
+        : st.done ? 'За повтор +' + fmt(L.reward * C.REPEAT_REWARD) + ' монет'
           : (st.best > 0 ? 'Лучший результат ' + Math.floor(st.best * 100) + '% · ' : '') + 'за прохождение +' + fmt(L.reward);
-      return `<button class="card level${open ? '' : ' locked'}" data-level="${i}">
+      return `<button class="card level${open ? '' : ' locked'}${st.done ? ' done' : ''}" data-level="${i}">
         <span class="num">${i + 1}</span>
-        <span class="info"><b>${L.name}</b><small>${status}</small></span>
+        <span class="info">${tag}<b>${L.name}</b><small>${status}</small></span>
         <span class="meta">~${Math.round(L.len / L.speed)} с</span>
       </button>`;
     }).join('');
   }
 
-  function statChips(id) {
+  function statLine(id) { // как строка характеристик в карточке детали на сайте: «W201 · В хорошем состоянии»
     const c = C.car(id), st = profile.cars[id] ? C.carStats(profile, id) : { jumpMul: c.jump, armor: c.armor, coinMul: 1 + c.coin };
     const out = [];
-    out.push('Прыжок ' + (st.jumpMul > 1.001 ? '+' + Math.round((st.jumpMul - 1) * 100) + '%' : 'база'));
-    out.push('Броня ' + st.armor);
-    out.push('Монеты ' + (st.coinMul > 1.001 ? '+' + Math.round((st.coinMul - 1) * 100) + '%' : 'база'));
-    return out.map(s => `<span>${s}</span>`).join('');
+    out.push('прыжок ' + (st.jumpMul > 1.001 ? '+' + Math.round((st.jumpMul - 1) * 100) + '%' : 'базовый'));
+    out.push('броня ' + st.armor);
+    out.push('монеты ' + (st.coinMul > 1.001 ? '+' + Math.round((st.coinMul - 1) * 100) + '%' : '×1'));
+    return out.join(' · ');
   }
 
   function renderGarage() {
@@ -146,11 +148,11 @@
     $('#cars').innerHTML = C.CARS.map(c => {
       const owned = !!profile.cars[c.id], inUse = profile.car === c.id;
       const btn = !owned ? `<button class="btn small buy" data-buy="${c.id}">${COIN}${fmt(c.price)}</button>`
-        : inUse ? '<button class="btn small" disabled>В деле</button>'
-          : `<button class="btn small" data-select="${c.id}">Выбрать</button>`;
+        : inUse ? '' : `<button class="btn small" data-select="${c.id}">Выбрать</button>`;
+      const tag = inUse ? '<span class="tag">В деле</span>' : owned ? '<span class="tag ghost">В гараже</span>' : '';
       return `<div class="card car${c.id === garageCar ? ' active' : ''}" data-view="${c.id}">
         <canvas class="thumb" data-draw="${c.id}"></canvas>
-        <div class="info"><b>${c.name}</b><small>${c.body} · ${c.year}</small><span class="chips">${statChips(c.id)}</span></div>
+        <div class="info">${tag}<b>${c.name}</b><small>${c.body}, ${c.year}<br>${statLine(c.id)}</small></div>
         ${btn}
       </div>`;
     }).join('');
@@ -177,7 +179,7 @@
     $('#packs').innerHTML = C.PACKS.map(p => `<div class="card pack">
       <span class="big">${COIN}${fmt(p.coins)}</span>
       <span class="info"><b>${p.title}</b><small>оплата Telegram Stars</small></span>
-      <button class="btn small star" data-pack="${p.id}"${canPay() ? '' : ' disabled'}>${p.stars} ⭐</button>
+      <button class="btn small buy" data-pack="${p.id}"${canPay() ? '' : ' disabled'}>${p.stars} ⭐</button>
     </div>`).join('');
     $('#shop-note').textContent = canPay()
       ? 'Монеты придут сразу после оплаты. Вопросы по покупкам — команда /paysupport в чате с ботом.'
@@ -233,10 +235,11 @@
 
   function showResult(li, reward) {
     const last = li === C.LEVELS.length - 1;
-    $('#res-title').textContent = last ? 'Ты — звезда провинции!' : 'Уровень пройден!';
+    $('#res-eyebrow').textContent = `Уровень ${li + 1} · ${C.LEVELS[li].name}`;
+    $('#res-title').innerHTML = last ? 'Ты — звезда<br><span class="metal">провинции.</span>' : 'Доехал.<br><span class="metal">Целым.</span>';
     $('#res-text').innerHTML = reward
-      ? `+${fmt(reward.total)} ${COIN}<br><small>${fmt(reward.coins)} с трассы` +
-        (reward.bonus ? ` и ${fmt(reward.bonus)} за ${reward.first ? 'первое прохождение' : 'повтор'}` : '') + '</small>'
+      ? `+${fmt(reward.total)} ${COIN} — ${fmt(reward.coins)} с трассы` +
+        (reward.bonus ? ` и ${fmt(reward.bonus)} за ${reward.first ? 'первое прохождение' : 'повтор'}.` : '.')
       : 'Заезд не сохранился — проверьте связь.';
     $('#res-actions').innerHTML =
       (!last ? `<button class="btn primary" data-level="${li + 1}">Следующий уровень</button>` : '') +
@@ -270,8 +273,13 @@
 
   // ---------- события ----------
   document.addEventListener('click', e => {
-    const t = e.target.closest('button, .card[data-view]');
+    const t = e.target.closest('button, .card[data-view], a[data-link]');
     if (!t) return;
+    if (t.dataset.link) { // внешние ссылки — через Telegram, чтобы не уводить игру со страницы
+      e.preventDefault();
+      if (tgv('6.1')) tg.openLink(t.dataset.link); else self.open(t.dataset.link, '_blank', 'noopener');
+      return;
+    }
     const d = t.dataset;
     if (t.id === 'back') goBack();
     else if (t.id === 'exit') exitPlay();

@@ -128,6 +128,14 @@ function check(cond, what) {
     await waitFor(() => calls.find(c => c.method === 'sendMessage' && c.payload.chat_id === 9), '/stars чужому');
     check(/только для владельца/.test(calls.find(c => c.method === 'sendMessage' && c.payload.chat_id === 9).payload.text), '/stars чужим не показывает баланс');
     check(/Баланс бота теперь: 50/.test(log), 'после оплаты в логах виден баланс звёзд бота');
+    check(/\/refund ch1/.test(stars.payload.text), '/stars показывает код платежа для возврата');
+
+    queue.push({ message: { from: user, chat: { id: 777, type: 'private' }, text: '/refund ch1' } });
+    await waitFor(() => calls.find(c => c.method === 'refundStarPayment'), 'refundStarPayment');
+    const rf = calls.find(c => c.method === 'refundStarPayment').payload;
+    await waitFor(() => calls.find(c => c.method === 'sendMessage' && /Вернули/.test(c.payload.text)), 'ответ на /refund');
+    r = await call('me');
+    check(rf.user_id === 777 && rf.telegram_payment_charge_id === 'ch1' && r.profile.coins === 0, '/refund возвращает звёзды и списывает монеты (не ниже нуля)');
 
     await sleep(500);
     const db = JSON.parse(fs.readFileSync(path.join(dataDir, 'db.json'), 'utf8'));

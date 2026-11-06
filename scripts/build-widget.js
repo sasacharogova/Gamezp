@@ -45,12 +45,12 @@ const CAR_SVG = [
   '</svg>',
 ].join('');
 
-const CSS = [
-  'html,body{margin:0;background:#15245a;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}',
+const CSS = [ // стиль сайта «Звезды Провинции»: графит, костяной текст, антиква
+  'html,body{margin:0;background:#191919;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}',
   'body{position:relative}',
   '#c{display:block;width:100%;height:auto;aspect-ratio:16/10;touch-action:none}',
   '#fb{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;',
-  'background:#2a48b5;color:#fff;font:700 26px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center}',
+  "background:#191919;color:#eceae5;font:400 26px 'Times New Roman',Times,serif;letter-spacing:.04em;text-transform:uppercase;text-align:center}",
 ].join('');
 
 (async () => {

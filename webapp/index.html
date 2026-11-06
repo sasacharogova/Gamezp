@@ -3,72 +3,85 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Звезда провинции</title>
+  <title>Звезда Провинции — гонка</title>
   <!-- SDK Telegram Mini Apps: initData для входа, оплата звёздами, хаптика, кнопка «Назад». Вне Telegram ничего не делает. -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    /* Стиль сайта zvezdaprovincii.ru: тёмный графит, костяной текст, классическая антиква,
+       квадратные углы без теней, хромированная полоса и логотип ●●● */
     :root {
-      --bg: #2a48b5; --panel: rgba(9, 12, 34, .62); --card: rgba(255, 255, 255, .09); --card-on: rgba(255, 255, 255, .17);
-      --line: rgba(255, 255, 255, .16); --muted: rgba(255, 255, 255, .72); --accent: #5cff6a; --accent-d: #1f9e2c;
-      --gold: #ffcf3a; --gold-d: #d99a00;
+      --ground: #191919; --surface: #1f1f1f; --sunken: #141414;
+      --ink: #eceae5; --ink-soft: #c6c4bf; --muted: #918f8a; --faint: #7c7a75;
+      --line: #2c2c2c; --line-strong: #3a3a3a; --gold: #e7c15a; --gold-d: #a8822b;
+      --serif: 'Times New Roman', Times, 'Liberation Serif', 'Noto Serif', serif;
+      --chrome: linear-gradient(90deg, #e9e9e9 0%, #8f8f8f 22%, #f4f4f4 46%, #6f6f6f 72%, #d9d9d9 100%);
     }
     * { box-sizing: border-box; }
     html, body {
-      margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: #fff;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0; height: 100%; overflow: hidden; background: var(--ground); color: var(--ink);
+      font-family: var(--serif); font-size: 17px; line-height: 1.45; -webkit-font-smoothing: antialiased;
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
       -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
     }
     #c { display: block; position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
-    button { font: inherit; color: inherit; cursor: pointer; }
+    button { font: inherit; color: inherit; cursor: pointer; border-radius: 0; }
 
-    .ui { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--panel); }
+    .ui { position: fixed; inset: 0; display: flex; flex-direction: column; background: rgba(25, 25, 25, .9); }
     .ui.hidden, .hidden { display: none !important; }
-    .topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; min-height: 52px; }
-    .topbar .title { flex: 1; font-weight: 800; font-size: 18px; }
-    .icon { width: 36px; height: 36px; border-radius: 12px; border: 0; background: var(--card); font-size: 22px; line-height: 1; }
-    .coins { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 7px 12px 7px 9px; background: rgba(0, 0, 0, .35); font-weight: 800; font-size: 15px; }
-    .coins b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #151515; font-size: 14px; }
-    .coin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; vertical-align: -0.14em; flex: none;
-      background: radial-gradient(circle at 38% 35%, #fff6c4 0 12%, var(--gold) 13% 62%, var(--gold-d) 63%); }
 
-    .screen { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 14px calc(18px + env(safe-area-inset-bottom)); }
+    /* шапка как на сайте: логотип ●●● и хромированная полоса */
+    .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 56px; background: var(--ground); }
+    .topbar .title { flex: 1; font-size: 19px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dots { display: inline-flex; gap: 4px; margin-right: 10px; vertical-align: 2px; }
+    .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+    .strip { flex: none; height: 10px; border-top: 1px solid var(--line-strong); border-bottom: 1px solid rgba(0, 0, 0, .5);
+      background: var(--chrome), repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 1px, rgba(255, 255, 255, 0) 1px 4px);
+      background-blend-mode: multiply; }
+    .icon { width: 38px; height: 38px; border: 1px solid var(--line-strong); background: transparent; font-size: 22px; line-height: 1; }
+    .coins { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line-strong); padding: 6px 10px; background: transparent; font-size: 17px; }
+    .coins b { font-weight: 400; color: var(--muted); margin-left: 2px; }
+    .coin { display: inline-block; width: .95em; height: .95em; border-radius: 50%; vertical-align: -0.12em; flex: none;
+      background: radial-gradient(circle at 38% 35%, #fff4cc 0 12%, var(--gold) 13% 62%, var(--gold-d) 63%); }
+
+    .screen { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 14px calc(20px + env(safe-area-inset-bottom)); }
     .screen.on { display: block; }
-    .center { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
-    h1 { margin: 0; font-size: clamp(30px, 9vw, 40px); line-height: 1.05; text-shadow: 0 3px 0 rgba(0, 0, 0, .3); }
-    h2 { margin: 18px 2px 8px; font-size: 16px; }
-    .sub { margin: 4px 0 14px; color: var(--muted); font-size: 15px; }
-    .note { margin: 14px auto 0; max-width: 340px; color: var(--muted); font-size: 13px; line-height: 1.4; }
-    .hero { width: 180px; height: 90px; filter: drop-shadow(0 6px 0 rgba(0, 0, 0, .25)); }
-    .stack { display: grid; gap: 10px; width: min(300px, 100%); }
+    .eyebrow { font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+    h1 { margin: 6px 0 0; font-weight: 400; font-size: clamp(34px, 10vw, 46px); line-height: 1.06; }
+    .metal { background: linear-gradient(90deg, #f4f4f4 0%, #9a9a9a 38%, #eeeeee 62%, #7a7a7a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    h2 { margin: 26px 0 12px; font-weight: 400; font-size: 26px; line-height: 1.15; }
+    .lead { margin: 12px 0 0; color: var(--ink-soft); font-size: 16px; max-width: 420px; }
+    .note { margin: 16px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .note a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
+    .hero { display: block; width: 100%; max-width: 360px; height: 110px; margin: 18px auto 6px; }
+    .stack { display: grid; gap: 10px; margin-top: 16px; }
 
-    .btn { border: 0; border-radius: 14px; padding: 14px 18px; background: var(--card-on); font-weight: 800; font-size: 17px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn.primary { background: var(--accent); color: #151515; box-shadow: 0 5px 0 var(--accent-d); }
-    .btn.primary:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-d); }
-    .btn.small { padding: 9px 12px; font-size: 14px; border-radius: 11px; white-space: nowrap; }
-    .btn.buy { background: var(--gold); color: #151515; }
-    .btn.star { background: #ffb800; color: #151515; }
-    .btn:disabled { opacity: .45; }
+    .btn { border: 1px solid rgba(236, 234, 229, .55); padding: 14px 18px; background: transparent; color: var(--ink); font-size: 17px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn.primary, .btn.buy { background: var(--ink); border-color: var(--ink); color: var(--ground); }
+    .btn:active { opacity: .8; }
+    .btn.small { padding: 9px 12px; font-size: 15px; white-space: nowrap; }
+    .btn:disabled { opacity: .4; }
 
     .list { display: grid; gap: 10px; }
-    .card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border-radius: 16px; background: var(--card); border: 2px solid transparent; text-align: left; }
-    .card.active { border-color: var(--accent); background: var(--card-on); }
+    .card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; background: var(--surface); border: 1px solid transparent; text-align: left; }
+    .card.active { border-color: var(--ink); }
     .card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-    .card b { font-size: 16px; }
-    .card small { color: var(--muted); font-size: 13px; line-height: 1.3; }
-    .level .num { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: #151515; font-weight: 900; font-size: 18px; }
-    .level.locked { opacity: .55; }
-    .level.locked .num { background: var(--card-on); color: #fff; }
-    .level .meta { color: var(--muted); font-size: 13px; }
+    .card b { font-weight: 400; font-size: 18px; }
+    .card small { color: var(--muted); font-size: 13.5px; line-height: 1.35; }
+    .tag { display: inline-block; align-self: flex-start; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 7px; background: var(--ink); color: var(--ground); }
+    .tag.ghost { background: transparent; color: var(--muted); border: 1px solid currentColor; }
+    .level .num { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line-strong); font-size: 24px; }
+    .level.done .num { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+    .level.locked { opacity: .5; }
+    .level .meta { color: var(--muted); font-size: 14px; }
     .car .thumb { width: 96px; height: 48px; flex: none; }
-    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-    .chips span { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, .3); color: var(--muted); }
-    .pips { letter-spacing: 3px; color: var(--accent); font-size: 12px; }
-    .pack .big { font-size: 20px; font-weight: 900; display: inline-flex; align-items: center; gap: 6px; min-width: 110px; }
+    .pips { letter-spacing: 3px; color: var(--ink-soft); font-size: 12px; }
+    .pack .big { font-size: 26px; display: inline-flex; align-items: center; gap: 8px; min-width: 116px; }
 
-    .exit { position: fixed; top: 10px; left: 12px; width: 34px; height: 34px; border-radius: 11px; border: 0; background: rgba(0, 0, 0, .35); color: #fff; font-size: 18px; z-index: 5; }
+    .exit { position: fixed; top: 10px; left: 12px; width: 36px; height: 36px; border: 1px solid var(--line-strong); background: rgba(25, 25, 25, .75); color: var(--ink); font-size: 18px; z-index: 5; }
     .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); max-width: calc(100% - 32px);
-      background: rgba(10, 10, 20, .92); padding: 11px 16px; border-radius: 14px; font-size: 14px; text-align: center; opacity: 0; pointer-events: none; transition: .2s; z-index: 10; }
+      background: var(--surface); border: 1px solid var(--line-strong); padding: 12px 16px; font-size: 15px; text-align: center;
+      opacity: 0; pointer-events: none; transition: .2s; z-index: 10; }
     .toast.on { opacity: 1; transform: translate(-50%, 0); }
   </style>
 </head>
@@ -81,40 +94,46 @@
       <div id="title" class="title"></div>
       <button id="coins" class="coins" aria-label="Монеты"><i class="coin"></i><span id="coin-count">0</span><b>+</b></button>
     </header>
+    <div class="strip"></div>
 
     <section id="scr-menu" class="screen">
-      <div class="center">
-        <canvas id="hero" class="hero"></canvas>
-        <h1>Звезда провинции</h1>
-        <p id="menu-car" class="sub"></p>
-        <div class="stack">
-          <button class="btn primary" data-go="levels">Играть</button>
-          <button class="btn" data-go="garage">Гараж</button>
-          <button class="btn" data-go="shop">Монеты за ⭐</button>
-        </div>
-        <p id="mode-note" class="note"></p>
+      <div class="eyebrow">Долгопрудный · гоняем по всей России</div>
+      <h1>Гоняем старые звёзды.<br><span class="metal">Пока целые.</span></h1>
+      <p class="lead">Шесть машин девяностых и нулевых, пять уровней и честная физика. Даже когда она грустная.</p>
+      <canvas id="hero" class="hero"></canvas>
+      <p id="menu-car" class="note" style="text-align:center;margin-top:0"></p>
+      <div class="stack">
+        <button class="btn primary" data-go="levels">Погнали</button>
+        <button class="btn" data-go="garage">Гараж</button>
+        <button class="btn" data-go="shop">Монеты за ⭐</button>
       </div>
+      <p id="mode-note" class="note"></p>
+      <p class="note">Игра от авторазбора «Звезда Провинции» · <a href="https://zvezdaprovincii.ru" data-link="https://zvezdaprovincii.ru">zvezdaprovincii.ru</a></p>
     </section>
 
-    <section id="scr-levels" class="screen"><div id="levels" class="list"></div></section>
+    <section id="scr-levels" class="screen">
+      <div class="eyebrow">5 уровней · следующий открывается после предыдущего</div>
+      <div id="levels" class="list" style="margin-top:12px"></div>
+    </section>
 
     <section id="scr-garage" class="screen">
-      <div id="cars" class="list"></div>
+      <div class="eyebrow">Машины 1990–2010 · каждая со своим характером</div>
+      <div id="cars" class="list" style="margin-top:12px"></div>
       <h2 id="upg-title"></h2>
       <div id="upgrades" class="list"></div>
     </section>
 
     <section id="scr-shop" class="screen">
-      <div id="packs" class="list"></div>
+      <div class="eyebrow">Монеты · оплата Telegram Stars</div>
+      <div id="packs" class="list" style="margin-top:12px"></div>
       <p id="shop-note" class="note"></p>
     </section>
 
     <section id="scr-result" class="screen">
-      <div class="center">
-        <h1 id="res-title"></h1>
-        <p id="res-text" class="sub"></p>
-        <div id="res-actions" class="stack"></div>
-      </div>
+      <div class="eyebrow" id="res-eyebrow"></div>
+      <h1 id="res-title"></h1>
+      <p id="res-text" class="lead"></p>
+      <div id="res-actions" class="stack"></div>
     </section>
   </div>
 

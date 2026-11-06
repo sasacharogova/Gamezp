@@ -21,7 +21,7 @@
  *   SUPPORT_CONTACT — куда писать по покупкам (например @username), показывается в /paysupport
  *   DATA_DIR     — папка для базы игроков; на Railway подставляется путь подключённого Volume
  *   ADMIN_ID     — ваш Telegram ID (узнать: команда /myid), через запятую можно несколько:
- *                  им доступна команда /stars — баланс звёзд бота и последние поступления
+ *                  им доступны /stars (баланс звёзд бота, поступления) и /refund <код> (вернуть звёзды)
  */
 'use strict';
 const fs = require('fs');
@@ -137,7 +137,8 @@ async function starBalance() {
 async function starsReport() {
   const balance = await starBalance();
   const tx = (await api('getStarTransactions', { limit: 10 })).transactions || [];
-  const pays = Object.values(store.db.payments).filter(p => !p.error);
+  const pays = Object.values(store.db.payments).filter(p => !p.error && !p.refunded);
+  const recent = Object.entries(store.db.payments).filter(([, p]) => !p.error).sort((a, b) => b[1].at - a[1].at).slice(0, 5);
   const monthAgo = Date.now() - 30 * 24 * 3600 * 1000;
   const month = pays.filter(p => p.at >= monthAgo);
   const lines = tx.slice(0, 10).map(t => {
@@ -148,6 +149,8 @@ async function starsReport() {
   return `<b>Баланс бота: ${balance} ⭐</b>\n` +
     `Покупок в игре за 30 дней: ${month.length} на ${month.reduce((a, p) => a + p.stars, 0)} ⭐ (всего ${pays.length})\n\n` +
     (lines.length ? '<b>Последние операции</b>\n<code>' + lines.join('\n') + '</code>\n\n' : '') +
+    (recent.length ? '<b>Покупки в игре</b> (вернуть: /refund и код)\n' + recent.map(([id, p]) =>
+      `${p.stars} ⭐ от ${p.uid}${p.refunded ? ' — возвращено' : ''}\n<code>/refund ${id}</code>`).join('\n') + '\n\n' : '') +
     'Вывести звёзды: профиль бота → Изменить → Баланс → вывод через Fragment ' +
     '(обычно через 21 день после покупки и от 1000 ⭐).';
 }
@@ -178,6 +181,12 @@ async function onUpdate(u, me) {
   else if (/^\/terms(@\w+)?(\s|$)/.test(m.text)) await send(m.chat.id, TERMS);
   else if (/^\/myid(@\w+)?(\s|$)/.test(m.text)) {
     await send(m.chat.id, `Ваш Telegram ID: <code>${m.from.id}</code>\nВладельцу: впишите его в переменную ADMIN_ID, чтобы видеть баланс звёзд командой /stars.`);
+  } else if (/^\/refund(@\w+)?(\s|$)/.test(m.text)) {
+    if (!ADMIN_IDS.includes(String(m.from.id))) { await send(m.chat.id, 'Команда только для владельца бота.'); return; }
+    const charge = m.text.split(/\s+/)[1];
+    if (!charge) { await send(m.chat.id, 'Укажите код платежа: /refund &lt;код&gt; — коды есть в /stars'); return; }
+    const r = await game.refund(charge).catch(e => ({ ok: false, error: e.message }));
+    await send(m.chat.id, r.ok ? `↩️ Вернули ${r.pay.stars} ⭐ игроку ${r.pay.uid}, списали ${r.pay.coins} монет.` : '❌ ' + r.error);
   } else if (/^\/stars(@\w+)?(\s|$)/.test(m.text)) {
     if (!ADMIN_IDS.includes(String(m.from.id))) await send(m.chat.id, 'Команда только для владельца бота.');
     else await send(m.chat.id, await starsReport().catch(e => 'Не удалось получить баланс: ' + e.message));
