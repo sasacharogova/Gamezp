@@ -141,6 +141,46 @@ function check(cond, what) {
     r = await call('me');
     check(rf.user_id === 777 && rf.telegram_payment_charge_id === 'ch1' && r.profile.coins === 0, '/refund возвращает звёзды и списывает монеты (не ниже нуля)');
 
+    // Прямая покупка машины и улучшения за звёзды
+    const GLAZ = C.car('glazastyi').price, BODY = C.upgrade('body').prices[0];
+    const pay = (id, payload, amount) => queue.push({ message: { from: user, chat: { id: 777, type: 'private' },
+      successful_payment: { currency: 'XTR', total_amount: amount, invoice_payload: payload, telegram_payment_charge_id: id } } });
+    const answers = () => calls.filter(c => c.method === 'answerPreCheckoutQuery');
+    r = await call('invoice', { item: { type: 'car', car: 'glazastyi' } });
+    const invCar = calls.filter(c => c.method === 'createInvoiceLink').pop().payload;
+    check(r.ok && invCar.payload === 'car:glazastyi:777' && invCar.prices[0].amount === GLAZ, `счёт на машину за ${GLAZ} ⭐`);
+    queue.push({ pre_checkout_query: { id: 'pc3', from: user, currency: 'XTR', total_amount: GLAZ, invoice_payload: 'car:glazastyi:777' } });
+    queue.push({ pre_checkout_query: { id: 'pc4', from: user, currency: 'XTR', total_amount: 10, invoice_payload: 'car:glazastyi:777' } });
+    await waitFor(() => answers().length >= 4, 'ответы на счёт за машину');
+    check(answers().find(c => c.payload.pre_checkout_query_id === 'pc3').payload.ok === true &&
+      answers().find(c => c.payload.pre_checkout_query_id === 'pc4').payload.ok === false, 'счёт за машину подтверждается, с чужой суммой — нет');
+    pay('ch2', 'car:glazastyi:777', GLAZ);
+    await waitFor(() => calls.find(c => c.method === 'sendMessage' && /Глазастый» теперь в гараже/.test(c.payload.text)), 'выдача машины');
+    r = await call('me');
+    check(r.profile.cars.glazastyi && r.profile.car === 'glazastyi' && r.profile.coins === 0, 'машина за звёзды выдана и выбрана, монеты не тронуты');
+    queue.push({ pre_checkout_query: { id: 'pc5', from: user, currency: 'XTR', total_amount: GLAZ, invoice_payload: 'car:glazastyi:777' } });
+    await waitFor(() => answers().find(c => c.payload.pre_checkout_query_id === 'pc5'), 'pc5');
+    check(answers().find(c => c.payload.pre_checkout_query_id === 'pc5').payload.ok === false, 'второй раз ту же машину оплатить нельзя');
+
+    r = await call('invoice', { item: { type: 'upgrade', car: 'glazastyi', upgrade: 'body' } });
+    const invUpg = calls.filter(c => c.method === 'createInvoiceLink').pop().payload;
+    check(invUpg.payload === 'upg:glazastyi:body:0:777' && invUpg.prices[0].amount === BODY, `счёт на улучшение за ${BODY} ⭐`);
+    pay('ch3', 'upg:glazastyi:body:0:777', BODY);
+    await waitFor(() => calls.find(c => c.method === 'sendMessage' && /Улучшение «Кузов» для «Глазастый» установлено/.test(c.payload.text)), 'выдача улучшения');
+    r = await call('me');
+    check(r.profile.cars.glazastyi.body === 1, 'улучшение за звёзды установлено');
+
+    pay('ch4', 'car:glazastyi:777', GLAZ); // оплата прошла, а машина уже есть — звёзды не пропадают
+    await sleep(800);
+    r = await call('me');
+    check(r.profile.coins === GLAZ, 'если товар уже есть, звёзды возвращаются монетами');
+
+    queue.push({ message: { from: user, chat: { id: 777, type: 'private' }, text: '/refund ch2' } });
+    await waitFor(() => calls.filter(c => c.method === 'refundStarPayment').length >= 2, 'возврат машины');
+    await sleep(300);
+    r = await call('me');
+    check(!r.profile.cars.glazastyi && r.profile.car === 'eshka', '/refund машины забирает её из гаража');
+
     await sleep(500);
     const db = JSON.parse(fs.readFileSync(path.join(dataDir, 'db.json'), 'utf8'));
     check(db.users['777'] && db.payments.ch1 && db.payments.ch1.coins === PACK.coins, 'профиль и платёж записаны в базу');

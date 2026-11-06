@@ -5,10 +5,11 @@
  *
  * Хотите поменять баланс — меняйте числа здесь, больше нигде.
  *
- * Курс: 1 монета = 1 звезда Telegram. Пачки монет продаются 1:1.
- * Цены машин и улучшений заданы в рублях (функция rub) и пересчитываются в монеты по цене
- * звезды для покупателя STAR_RUB. Игра даёт монеты скупо: редкие монеты на трассе
- * (1 штука = 1 монета) и награда за первое прохождение уровня.
+ * Курс: 1 монета = 1 звезда Telegram. Цены машин и улучшений — «красивые» числа в монетах,
+ * они же цены в звёздах: машину или улучшение можно купить за монеты или сразу за столько же ⭐.
+ * Пачки монет продаются 1:1 и подогнаны под цены машин. Рубли — только для справки (STAR_RUB).
+ * Игра даёт монеты скупо: редкие монеты на трассе (1 штука = 1 монета) и награда за первое
+ * прохождение уровня.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -16,27 +17,26 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // Сколько рублей игрок платит за 1 звезду (официально в Telegram и App Store ≈ 1,7–1,9 ₽, осень 2026).
+  // Сколько рублей игрок примерно платит за 1 звезду (в Telegram и App Store ≈ 1,7–1,9 ₽, осень 2026) —
+  // только чтобы показать «≈ … ₽» рядом с ценой
   const STAR_RUB = 1.8;
-  // Цена в рублях → в монетах (= звёздах), округлённо до десятков
-  const rub = r => Math.round(r / STAR_RUB / 10) * 10;
 
   // Машины 1990–2010-х. Названия — народные прозвища, без марок и эмблем.
   // jump — множитель прыжка, armor — сколько ударов машина переживёт за попытку, coin — бонус к монетам.
   const CARS = [
     { id: 'eshka', name: 'Ешка', body: 'седан', year: 1993, price: 0, jump: 1, armor: 0, coin: 0 },
-    { id: 'kaban', name: 'Кабан', body: 'седан', year: 1995, price: rub(1000), jump: 1, armor: 1, coin: 0.1 },
-    { id: 'glazastyi', name: 'Глазастый', body: 'седан', year: 1999, price: rub(1500), jump: 1.04, armor: 1, coin: 0.15 },
-    { id: 'roadster', name: 'Родстер', body: 'кабриолет', year: 1996, price: rub(2500), jump: 1.1, armor: 0, coin: 0.3 },
-    { id: 'gelik', name: 'Гелик', body: 'внедорожник', year: 2002, price: rub(3500), jump: 1.04, armor: 2, coin: 0.25 },
-    { id: 'dlinnyi', name: 'Длинный', body: 'седан', year: 2005, price: rub(5000), jump: 1.06, armor: 2, coin: 0.5 },
+    { id: 'kaban', name: 'Кабан', body: 'седан', year: 1995, price: 599, jump: 1, armor: 1, coin: 0.1 },
+    { id: 'glazastyi', name: 'Глазастый', body: 'седан', year: 1999, price: 849, jump: 1.04, armor: 1, coin: 0.15 },
+    { id: 'roadster', name: 'Родстер', body: 'кабриолет', year: 1996, price: 1390, jump: 1.1, armor: 0, coin: 0.3 },
+    { id: 'gelik', name: 'Гелик', body: 'внедорожник', year: 2002, price: 1999, jump: 1.04, armor: 2, coin: 0.25 },
+    { id: 'dlinnyi', name: 'Длинный', body: 'седан', year: 2005, price: 2999, jump: 1.06, armor: 2, coin: 0.5 },
   ];
 
   // Улучшения покупаются для каждой машины отдельно, по 3 ступени.
   const UPGRADES = [
-    { id: 'suspension', name: 'Подвеска', desc: 'прыжок выше и дальше', prices: [rub(150), rub(300), rub(600)], step: 0.04 },
-    { id: 'body', name: 'Кузов', desc: '+1 удар, который машина переживёт', prices: [rub(200), rub(400), rub(800)], step: 1 },
-    { id: 'engine', name: 'Двигатель', desc: '+25% монет с трассы', prices: [rub(150), rub(300), rub(600)], step: 0.25 },
+    { id: 'suspension', name: 'Подвеска', desc: 'прыжок выше и дальше', prices: [99, 199, 349], step: 0.04 },
+    { id: 'body', name: 'Кузов', desc: '+1 удар, который машина переживёт', prices: [149, 249, 449], step: 1 },
+    { id: 'engine', name: 'Двигатель', desc: '+25% монет с трассы', prices: [99, 199, 349], step: 0.25 },
   ];
 
   // Уровни: длина трассы (px), скорость (px/с), сложность препятствий от начала к концу (0…1),
@@ -51,13 +51,14 @@
     { name: 'Рублёвка', len: 12000, speed: 360, d: [0.45, 1], gap: [205, 300], seed: 51, palette: ['#433b31', '#54493b'], coins: 14, reward: 160 },
   ];
 
-  // Пакеты монет за Telegram Stars (XTR): 1 монета = 1 звезда.
+  // Пакеты монет за Telegram Stars (XTR): 1 монета = 1 звезда, размеры — под цены машин и улучшений.
   const PACKS = [
-    { id: 'coins_100', title: 'Горсть монет', coins: 100, stars: 100 },
-    { id: 'coins_300', title: 'Пачка монет', coins: 300, stars: 300 },
-    { id: 'coins_600', title: 'Мешок монет', coins: 600, stars: 600 },
-    { id: 'coins_1500', title: 'Сундук монет', coins: 1500, stars: 1500 },
-    { id: 'coins_3000', title: 'Сейф монет', coins: 3000, stars: 3000 },
+    { id: 'coins_99', title: 'Горсть монет', coins: 99, stars: 99 },
+    { id: 'coins_299', title: 'Пачка монет', coins: 299, stars: 299 },
+    { id: 'coins_599', title: 'Кошелёк', coins: 599, stars: 599 },
+    { id: 'coins_999', title: 'Мешок монет', coins: 999, stars: 999 },
+    { id: 'coins_1999', title: 'Сундук монет', coins: 1999, stars: 1999 },
+    { id: 'coins_2999', title: 'Сейф монет', coins: 2999, stars: 2999 },
   ];
 
   const COIN_VALUE = 1;         // монет за одну монету на трассе
@@ -149,6 +150,15 @@
     return p;
   }
 
+  // Цена покупки в монетах (= звёздах): { type: 'car', car } или { type: 'upgrade', car, upgrade }.
+  // null — купить нельзя (машина уже есть, её нет для улучшения, улучшение на максимуме).
+  function itemPrice(p, item) {
+    if (!item || typeof item !== 'object') return null;
+    if (item.type === 'car') { const c = car(item.car); return c && !p.cars[c.id] ? c.price : null; }
+    if (item.type === 'upgrade') return p.cars[item.car] ? upgradePrice(p, item.car, item.upgrade) : null;
+    return null;
+  }
+
   // Итог попытки: монеты с трассы + награда за прохождение. Меняет профиль и возвращает разбивку.
   function applyRun(p, r) {
     const li = r.level | 0;
@@ -173,6 +183,6 @@
 
   return {
     CARS, UPGRADES, LEVELS, PACKS, COIN_VALUE, REPEAT_REWARD, START_COINS, STAR_RUB, GameError,
-    car, upgrade, newProfile, normalize, levelUnlocked, carStats, buyCar, selectCar, upgradePrice, buyUpgrade, applyRun,
+    car, upgrade, newProfile, normalize, levelUnlocked, carStats, buyCar, selectCar, upgradePrice, buyUpgrade, itemPrice, applyRun,
   };
 });

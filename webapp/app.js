@@ -145,16 +145,24 @@
     return out.join(' · ');
   }
 
+  const rubles = n => '≈\u00a0' + fmt(Math.round(n * C.STAR_RUB / 10) * 10) + '\u00a0₽';
+
+  // Кнопка покупки: хватает монет — за монеты, не хватает — сразу за столько же звёзд (1 монета = 1 ⭐)
+  function buyButton(price, coinAttr, starAttr) {
+    if (profile.coins >= price || !canPay()) return `<button class="btn small buy" ${coinAttr}>${COIN}${fmt(price)}</button>`;
+    return `<button class="btn small buy" ${starAttr}>${fmt(price)}\u00a0⭐</button>`;
+  }
+
   function renderGarage() {
     if (!garageCar || !C.car(garageCar)) garageCar = profile.car;
     $('#cars').innerHTML = C.CARS.map(c => {
       const owned = !!profile.cars[c.id], inUse = profile.car === c.id;
-      const btn = !owned ? `<button class="btn small buy" data-buy="${c.id}">${COIN}${fmt(c.price)}</button>`
+      const btn = !owned ? buyButton(c.price, `data-buy="${c.id}"`, `data-starcar="${c.id}"`)
         : inUse ? '' : `<button class="btn small" data-select="${c.id}">Выбрать</button>`;
       const tag = inUse ? '<span class="tag">В деле</span>' : owned ? '<span class="tag ghost">В гараже</span>' : '';
       return `<div class="card car${c.id === garageCar ? ' active' : ''}" data-view="${c.id}">
         <canvas class="thumb" data-draw="${c.id}"></canvas>
-        <div class="info">${tag}<b>${c.name}</b><small>${c.body}, ${c.year}<br>${statLine(c.id)}</small></div>
+        <div class="info">${tag}<b>${c.name}</b><small>${c.body}, ${c.year}${owned ? '' : ' · ' + rubles(c.price)}<br>${statLine(c.id)}</small></div>
         ${btn}
       </div>`;
     }).join('');
@@ -170,7 +178,7 @@
         return `<div class="card upg">
           <div class="info"><b>${u.name}</b><small>${u.desc}</small><span class="pips">${pips}</span></div>
           ${price === null ? '<button class="btn small" disabled>Максимум</button>'
-            : `<button class="btn small buy" data-upg="${u.id}">${COIN}${fmt(price)}</button>`}
+            : buyButton(price, `data-upg="${u.id}"`, `data-starupg="${u.id}"`)}
         </div>`;
       }).join('');
   }
@@ -180,11 +188,11 @@
   function renderShop() {
     $('#packs').innerHTML = C.PACKS.map(p => `<div class="card pack">
       <span class="big">${COIN}${fmt(p.coins)}</span>
-      <span class="info"><b>${p.title}</b><small>≈\u00a0${fmt(Math.round(p.stars * C.STAR_RUB / 10) * 10)}\u00a0₽</small></span>
+      <span class="info"><b>${p.title}</b><small>${rubles(p.stars)}</small></span>
       <button class="btn small buy" data-pack="${p.id}"${canPay() ? '' : ' disabled'}>${fmt(p.stars)} ⭐</button>
     </div>`).join('');
     $('#shop-note').textContent = canPay()
-      ? 'Монеты придут сразу после оплаты. Вопросы по покупкам — команда /paysupport в чате с ботом.'
+      ? 'Монеты придут сразу после оплаты. Машину или улучшение можно купить и сразу за звёзды — в гараже. Вопросы по покупкам — команда /paysupport в чате с ботом.'
       : 'Покупка за звёзды работает, когда игра открыта в Telegram и сервер бота на связи.';
   }
 
@@ -252,25 +260,37 @@
   }
 
   // ---------- оплата звёздами ----------
-  async function buyPack(id) {
+  // body — что покупаем ({ pack } или { item }), done() — пришла ли покупка, okMsg — что сказать
+  async function payStars(body, done, okMsg) {
     if (!canPay()) { toast('Покупка за звёзды работает в Telegram'); return; }
     let url;
-    try { url = (await api('invoice', { pack: id })).url; } catch (e) { toast(e.message); return; }
-    const before = profile.coins;
+    try { url = (await api('invoice', body)).url; } catch (e) { toast(e.message); return; }
     tg.openInvoice(url, async status => {
       if (status === 'paid') {
-        toast('Оплата прошла, начисляем монеты…');
-        for (let i = 0; i < 10 && profile.coins <= before; i++) { // бот начисляет монеты, получив подтверждение от Telegram
+        toast('Оплата прошла, забираем покупку…');
+        for (let i = 0; i < 10 && !done(); i++) { // бот выдаёт покупку, получив подтверждение от Telegram
           await sleep(1000);
           try { await api('me'); } catch (e) { /* ещё раз */ }
         }
         renderAll();
-        if (profile.coins > before) { toast('Монеты начислены!'); Game.haptic('win'); }
-        else toast('Монеты скоро появятся — бот пришлёт сообщение в чат');
+        if (done()) { toast(okMsg); Game.haptic('win'); Game.demo(0, profile.car); }
+        else toast('Покупка скоро появится — бот пришлёт сообщение в чат');
       } else if (status === 'failed') {
         toast('Оплата не прошла');
       }
     });
+  }
+  function buyPack(id) {
+    const before = profile.coins;
+    payStars({ pack: id }, () => profile.coins > before, 'Монеты начислены!');
+  }
+  function buyCarStars(id) {
+    garageCar = id;
+    payStars({ item: { type: 'car', car: id } }, () => !!profile.cars[id], C.car(id).name + ' теперь в гараже');
+  }
+  function buyUpgradeStars(car, upg) {
+    const lvl = profile.cars[car][upg];
+    payStars({ item: { type: 'upgrade', car, upgrade: upg } }, () => !!profile.cars[car] && profile.cars[car][upg] > lvl, 'Улучшение установлено');
   }
 
   // ---------- события ----------
@@ -292,6 +312,8 @@
     else if (d.select) act(() => api('buy', { type: 'select', car: d.select }), p => C.selectCar(p, d.select)).then(ok => { if (ok) { garageCar = d.select; Game.demo(0, profile.car); } });
     else if (d.upg) act(() => api('buy', { type: 'upgrade', car: garageCar, upgrade: d.upg }), p => C.buyUpgrade(p, garageCar, d.upg));
     else if (d.pack) buyPack(d.pack);
+    else if (d.starcar) buyCarStars(d.starcar);
+    else if (d.starupg) buyUpgradeStars(garageCar, d.starupg);
     else if (d.view) { garageCar = d.view; renderGarage(); }
   });
   if (tgv('6.1')) { try { tg.BackButton.onClick(goBack); } catch (e) { /* ignore */ } }

@@ -150,7 +150,7 @@ async function starsReport() {
     `Покупок в игре за 30 дней: ${month.length} на ${month.reduce((a, p) => a + p.stars, 0)} ⭐ (всего ${pays.length})\n\n` +
     (lines.length ? '<b>Последние операции</b>\n<code>' + lines.join('\n') + '</code>\n\n' : '') +
     (recent.length ? '<b>Покупки в игре</b> (вернуть: /refund и код)\n' + recent.map(([id, p]) =>
-      `${p.stars} ⭐ от ${p.uid}${p.refunded ? ' — возвращено' : ''}\n<code>/refund ${id}</code>`).join('\n') + '\n\n' : '') +
+      `${p.stars} ⭐ от ${p.uid} · ${p.grant ? (p.grant.type === 'car' ? 'машина ' + p.grant.car : 'улучшение ' + p.grant.upgrade) : (p.coins || 0) + ' монет'}${p.refunded ? ' — возвращено' : ''}\n<code>/refund ${id}</code>`).join('\n') + '\n\n' : '') +
     'Вывести звёзды: профиль бота → Изменить → Баланс → вывод через Fragment ' +
     '(обычно через 21 день после покупки и от 1000 ⭐).';
 }
@@ -167,9 +167,14 @@ async function onUpdate(u, me) {
   if (!m) return;
   if (m.successful_payment) {
     const r = game.applyPayment(m.successful_payment, m.from.id);
-    console.log(`⭐ Оплата ${m.successful_payment.total_amount} XTR от ${m.from.id}: ${r.status}${r.pack ? ' ' + r.pack.id : ''}`);
+    console.log(`⭐ Оплата ${m.successful_payment.total_amount} XTR от ${m.from.id}: ${r.status} ${m.successful_payment.invoice_payload}`);
     if (r.status === 'ok') {
-      await send(m.chat.id, `✅ Начислено ${r.pack.coins.toLocaleString('ru-RU')} монет. Возвращайся в игру!`);
+      const C = CATALOG;
+      const what = r.kind === 'pack' || !r.item
+        ? `Начислено ${r.coins.toLocaleString('ru-RU')} монет`
+        : r.item.type === 'car' ? `«${C.car(r.item.car).name}» теперь в гараже`
+          : `Улучшение «${C.upgrade(r.item.upgrade).name}» для «${C.car(r.item.car).name}» установлено`;
+      await send(m.chat.id, `✅ ${what}. Возвращайся в игру!`);
       starBalance().then(b => console.log(`⭐ Баланс бота теперь: ${b} звёзд`)).catch(e => console.error('getMyStarBalance:', e.message));
     }
     else if (r.status === 'unknown') await send(m.chat.id, 'Оплата получена, но заказ не распознан. Напиши /paysupport — разберёмся.');
@@ -186,7 +191,7 @@ async function onUpdate(u, me) {
     const charge = m.text.split(/\s+/)[1];
     if (!charge) { await send(m.chat.id, 'Укажите код платежа: /refund &lt;код&gt; — коды есть в /stars'); return; }
     const r = await game.refund(charge).catch(e => ({ ok: false, error: e.message }));
-    await send(m.chat.id, r.ok ? `↩️ Вернули ${r.pay.stars} ⭐ игроку ${r.pay.uid}, списали ${r.pay.coins} монет.` : '❌ ' + r.error);
+    await send(m.chat.id, r.ok ? `↩️ Вернули ${r.pay.stars} ⭐ игроку ${r.pay.uid} и забрали покупку.` : '❌ ' + r.error);
   } else if (/^\/stars(@\w+)?(\s|$)/.test(m.text)) {
     if (!ADMIN_IDS.includes(String(m.from.id))) await send(m.chat.id, 'Команда только для владельца бота.');
     else await send(m.chat.id, await starsReport().catch(e => 'Не удалось получить баланс: ' + e.message));
